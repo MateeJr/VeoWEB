@@ -135,7 +135,7 @@ const ChatBox: React.FC = () => {
           <div 
             style={{
               display: 'block',
-              marginBottom: '-1rem',
+              marginBottom: '0rem',
               color: '#333',
               fontWeight: 'bold'
             }} 

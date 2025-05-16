@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
-import 'react-tooltip/dist/react-tooltip.css';
-import Header from "@/components/Header"; // Assuming @ is configured for src
+import Header from "@/components/Header";
+import MainLayoutClient from "@/components/MainLayoutClient"; // To be created
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Veo",
-  description: "Veo",
+  title: "VEO | AI For Us",
+  description: "VEO | AI For Us",
+  icons: {
+    icon: '/main_full.png', // Path to the icon in the public directory
+  },
 };
 
 export default function RootLayout({
@@ -15,9 +21,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
+      <body className={inter.className}>
+        <MainLayoutClient>
+          {/* Header can be part of MainLayoutClient or here, depending on whether it needs auth state directly before loading */} 
         <Header />
         {children}
+        </MainLayoutClient>
       </body>
     </html>
   );

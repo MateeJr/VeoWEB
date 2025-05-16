@@ -33,6 +33,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Email and password are required' }, { status: 400 });
     }
 
+    // Require deviceFingerprint for login
+    if (!deviceFingerprint) {
+      return NextResponse.json({ success: false, message: 'Device information is required' }, { status: 400 });
+    }
+
     const users = await getUsers();
     const user = users.find(u => u.email === email);
 
@@ -45,21 +50,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Invalid email or password' }, { status: 401 });
     }
 
-    // Optional: Update device fingerprint on login or handle multi-device logic
-    if (deviceFingerprint) {
-        if (!user.deviceFingerprint) { // First time login with this device for this user
-            user.deviceFingerprint = deviceFingerprint;
-            await saveUsers(users);
-        } else if (user.deviceFingerprint !== deviceFingerprint) {
-            // Potentially flag as suspicious or require verification if fingerprint changes
-            // For this example, we'll just update it.
-            // console.warn(`Device fingerprint mismatch for user ${email}. Updating.`);
-            // user.deviceFingerprint = deviceFingerprint;
-            // await saveUsers(users);
-            // Or, return an error/require verification:
-            // return NextResponse.json({ success: false, message: 'Device verification failed. Please try logging in from a recognized device or verify your identity.' }, { status: 403 });
-        }
-    }
+    // Always update the device fingerprint on successful login
+    user.deviceFingerprint = deviceFingerprint;
+    await saveUsers(users);
 
     // Return minimal user info, password should not be sent back
     return NextResponse.json({ 

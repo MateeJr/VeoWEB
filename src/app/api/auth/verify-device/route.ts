@@ -29,7 +29,24 @@ async function saveUsers(users: User[]): Promise<void> {
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, fingerprint } = await req.json();
+    const rawBodyText = await req.text();
+    console.log('[VERIFY_DEVICE_POST] Raw request body text:', rawBodyText);
+
+    if (!rawBodyText) {
+      console.error('[VERIFY_DEVICE_POST] Request body is empty.');
+      return NextResponse.json({ success: false, message: 'Request body is empty' }, { status: 400 });
+    }
+
+    let body;
+    try {
+      body = JSON.parse(rawBodyText);
+    } catch (parseError) {
+      console.error('[VERIFY_DEVICE_POST] JSON.parse error:', parseError);
+      console.error('[VERIFY_DEVICE_POST] Raw body that failed to parse:', rawBodyText);
+      return NextResponse.json({ success: false, message: 'Invalid JSON format in request body' }, { status: 400 });
+    }
+    
+    const { email, fingerprint } = body;
 
     if (!email || !fingerprint) {
       return NextResponse.json({ success: false, message: 'Email and fingerprint are required' }, { status: 400 });
@@ -40,7 +57,7 @@ export async function POST(req: NextRequest) {
 
     if (!user) {
       // Important: Do not reveal if the email exists or not for security reasons
-      return NextResponse.json({ success: false, message: 'Device verification failed' }, { status: 403 });
+      return NextResponse.json({ success: false, message: 'Device verification failed (user not found)' }, { status: 403 });
     }
 
     // This is a simplified verification. 
@@ -71,7 +88,7 @@ export async function POST(req: NextRequest) {
     }
 
   } catch (error) {
-    console.error('[VERIFY_DEVICE_POST]', error);
+    console.error('[VERIFY_DEVICE_POST] General error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json({ success: false, message: errorMessage }, { status: 500 });
   }

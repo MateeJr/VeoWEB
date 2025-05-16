@@ -201,7 +201,7 @@ export default function ForgotPasswordModal({
   const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
 
   const styles = {
-    modalOverlay: { position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' } as CSSProperties,
+    modalOverlay: { position: 'fixed', inset: 0, zIndex: 1050, display: 'flex', alignItems: 'center', justifyContent: 'center' } as CSSProperties,
     backdrop: { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' } as CSSProperties,
     modalContent: { position: 'relative', backgroundColor: 'rgba(0,0,0,0.9)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '0.75rem', width: '100%', maxWidth: '28rem', margin: '1rem', overflow: 'hidden', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)' } as CSSProperties,
     closeButton: { position: 'absolute', top: '1rem', right: '1rem', color: '#9ca3af', cursor: 'pointer' } as CSSProperties,
@@ -243,7 +243,18 @@ export default function ForgotPasswordModal({
     loadingSpinner: { display: 'inline-block', height: '1.25rem', width: '1.25rem', animation: 'spin 1s linear infinite', borderRadius: '9999px', border: '2px solid white', borderTopColor: 'transparent' } as CSSProperties,
     buttonTextWithIcon: { display: 'flex', alignItems: 'center', justifyContent: 'center' } as CSSProperties,
     backToLoginButton: { width: '100%', fontSize: '0.875rem', textAlign: 'center', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem 0' } as CSSProperties,
-    eyeButton: { position: 'absolute', insetY: 0, right: 0, paddingRight: '0.75rem', display: 'flex', alignItems: 'center', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer' } as CSSProperties,
+    eyeButton: {
+      position: 'absolute',
+      top: '50%',
+      transform: 'translateY(-50%)',
+      right: '0.75rem',
+      display: 'flex',
+      alignItems: 'center',
+      color: '#9ca3af',
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+    } as CSSProperties,
     requirementsBox: { marginTop: '0.5rem', backgroundColor: 'rgba(255,255,255,0.05)', padding: '0.75rem', borderRadius: '0.5rem' } as CSSProperties,
     requirementsTitle: { fontSize: '0.875rem', color: '#d1d5db', marginBottom: '0.5rem' } as CSSProperties,
     requirementsList: { listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.25rem' } as CSSProperties,

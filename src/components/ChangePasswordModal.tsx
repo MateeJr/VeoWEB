@@ -163,11 +163,11 @@ export default function ChangePasswordModal({
   const [confirmPassFocused, setConfirmPassFocused] = useState(false);
 
   const styles = {
-    modalOverlay: { position: 'fixed', inset: 0, zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center' } as CSSProperties, // Higher zIndex than AccountModal
+    modalOverlay: { position: 'fixed', inset: 0, zIndex: 1060, display: 'flex', alignItems: 'center', justifyContent: 'center' } as CSSProperties, // Updated zIndex
     backdrop: { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)' } as CSSProperties,
-    modalContent: { position: 'relative', backgroundColor: 'rgba(10,10,10,0.95)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '0.75rem', width: '100%', maxWidth: '28rem', margin: '1rem', overflow: 'hidden', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)' } as CSSProperties,
+    modalContent: { position: 'relative', backgroundColor: 'rgba(10,10,10,0.95)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '0.75rem', width: 'auto', maxWidth: '28rem', margin: '1rem', overflow: 'hidden', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)' } as CSSProperties,
     closeButton: { position: 'absolute', top: '1rem', right: '1rem', color: '#9ca3af', cursor: 'pointer' } as CSSProperties,
-    contentPadding: { padding: '2rem' } as CSSProperties,
+    contentPadding: { padding: '1.5rem' } as CSSProperties,
     headerContainer: { marginBottom: '1.5rem' } as CSSProperties,
     title: { fontSize: '1.5rem', fontWeight: 'bold', color: 'white', fontFamily: 'sans-serif' } as CSSProperties,
     paragraph: { color: '#d1d5db', marginBottom: '1.5rem', fontSize: '0.875rem' } as CSSProperties,

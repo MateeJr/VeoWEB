@@ -242,6 +242,25 @@ export const verifyDevice = async (email: string): Promise<{ success: boolean; m
     }
 };
 
+// Client-side function to delete user account
+export const deleteAccount = async (email: string, password: string): Promise<{ success: boolean; message: string }> => {
+  try {
+    const response = await fetch('/api/auth/delete-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      // Prefer message from server response if available
+      throw new Error(data.message || 'Failed to delete account. Status: ' + response.status);
+    }
+    return data; // Expects { success: true, message: '...' } or { success: false, message: '...' }
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : 'An unexpected error occurred while deleting the account.' };
+  }
+};
+
 // This function would typically be part of a broader auth context/provider
 // to make auth state easily accessible throughout the app.
 export const useAuth = () => {
@@ -252,18 +271,45 @@ export const useAuth = () => {
     React.useEffect(() => {
         const checkAuthStatus = async () => {
             setLoading(true);
-            const currentlyLoggedIn = isUserLoggedIn();
-            setLoggedIn(currentlyLoggedIn);
-            if (currentlyLoggedIn) {
-                const profile = await getCurrentUserProfile();
-                if (profile.success && profile.user) {
-                    setUser(profile.user);
+            const currentlyLoggedInByCookie = isUserLoggedIn(); // Checks 'isLoggedIn' cookie
+            
+            if (currentlyLoggedInByCookie) {
+                const userEmailFromCookie = getLoggedInUserEmail(); // Gets 'userEmail' cookie
+
+                if (userEmailFromCookie) {
+                    // We have an email, let's verify the device
+                    const deviceVerification = await verifyDevice(userEmailFromCookie);
+                    if (!deviceVerification.success) {
+                        console.warn('Device verification failed during auth check. Logging out. Message:', deviceVerification.message);
+                        await logoutUser(); // This should clear cookies and update state via reload/re-render
+                        setLoggedIn(false); 
+                        setUser(null);
+                        setLoading(false);
+                        return; // Exit: Device not verified
+                    }
+
+                    // Device is verified, now get profile
+                    const profile = await getCurrentUserProfile(); // getCurrentUserProfile uses its own getLoggedInUserEmail()
+                    if (profile.success && profile.user) {
+                        setUser(profile.user);
+                        setLoggedIn(true); // Confirm loggedIn state
+                    } else {
+                        console.warn('Failed to get user profile after successful device verification during auth check. Logging out. Message:', profile.message);
+                        await logoutUser();
+                        setLoggedIn(false);
+                        setUser(null);
+                    }
                 } else {
-                    // Token might be invalid or expired, log out
+                    // 'isLoggedIn' cookie was true, but 'userEmail' cookie is missing. This is an inconsistent state.
+                    console.warn("'isLoggedIn' cookie present, but 'userEmail' cookie is missing during auth check. Logging out.");
                     await logoutUser();
                     setLoggedIn(false);
                     setUser(null);
                 }
+            } else {
+                // Not logged in (no 'isLoggedIn' cookie)
+                setLoggedIn(false);
+                setUser(null);
             }
             setLoading(false);
         };
@@ -299,16 +345,27 @@ export const useAuth = () => {
     const register = async (email: string, pass: string, uname: string) => {
         setLoading(true);
         const result = await registerUser(email, pass, uname);
-        // Optionally auto-login after successful registration
-        // if (result.success) {
-        //   await login(email, pass);
-        // }
+        if (result.success) {
+          // Auto-login after successful registration
+          const loginResult = await loginUser(email, pass);
+          if (loginResult.success) {
+            setLoggedIn(true);
+            const profile = await getCurrentUserProfile();
+            if (profile.success && profile.user) {
+              setUser(profile.user);
+            }
+          } else {
+            // Handle failed auto-login if necessary, though register succeeded
+            console.error("Auto-login after registration failed:", loginResult.message);
+            // Potentially set an error message for the UI to pick up
+          }
+        }
         setLoading(false);
         return result;
     };
 
 
-    return { loggedIn, user, loading, login, logout, register, getCurrentUserProfile, updateUserProfile, requestPasswordReset, resetPasswordWithOTP, changePassword, verifyDevice };
+    return { loggedIn, user, loading, login, logout, register, getCurrentUserProfile, updateUserProfile, requestPasswordReset, resetPasswordWithOTP, changePassword, verifyDevice, deleteAccount };
 };
 
 // You'll need to import React for the useAuth hook if you use it.

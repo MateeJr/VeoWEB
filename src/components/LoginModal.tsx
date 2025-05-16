@@ -206,7 +206,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     modalOverlay: {
       position: 'fixed',
       inset: 0,
-      zIndex: 50,
+      zIndex: 1050,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',

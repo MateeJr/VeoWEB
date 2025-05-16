@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import { User } from '@/utils/auth';
+import { sendPasswordResetOTP } from '@/utils/emailService';
 // import crypto from 'crypto'; // For more secure OTP generation if needed
 
 const usersFilePath = path.join(process.cwd(), 'users.json');
@@ -59,10 +60,19 @@ export async function POST(req: NextRequest) {
     await saveUsers(users);
 
     // In a real app, send the OTP via email
-    console.log(`Password Reset OTP for ${email}: ${otp}`); // Log OTP for testing
-    // await sendPasswordResetEmail(email, otp); // Implement this function using an email service
+    // console.log(`Password Reset OTP for ${email}: ${otp}`); // Log OTP for testing
+    const emailSent = await sendPasswordResetOTP(email, otp); // Use the email service
 
-    return NextResponse.json({ success: true, message: 'Password reset OTP sent (check console for testing).' });
+    if (!emailSent) {
+      // Log the error but still return a generic success message to the client
+      // to avoid leaking information about email sending status for a specific user.
+      console.error(`Failed to send password reset OTP to ${email}, but returning generic success message.`);
+      // Optionally, you might want to alert admins here or have more robust error handling/retry mechanisms.
+      // For the client, we still pretend it might have been sent to avoid enumeration attacks.
+      return NextResponse.json({ success: true, message: 'If your email is in our system, you will receive a password reset link.' });
+    }
+
+    return NextResponse.json({ success: true, message: 'Password reset OTP sent. Please check your email.' }); // Updated message
 
   } catch (error) {
     console.error('[REQUEST_PASSWORD_RESET_POST]', error);

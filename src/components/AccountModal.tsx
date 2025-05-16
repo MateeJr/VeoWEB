@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, CSSProperties } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User as UserIcon, LogOut, Edit, Clock, Key, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, User as UserIcon, LogOut, Edit, Clock, Key, CheckCircle, AlertCircle, ShieldAlert } from 'lucide-react';
 import {
   logoutUser,
   getCurrentUserProfile,
@@ -11,6 +11,7 @@ import {
 } from '@/utils/auth';
 import { formatRelativeTime, formatFullDate } from '@/utils/formatTime';
 import ChangePasswordModal from '@/components/ChangePasswordModal'; // Using path alias
+import DeleteAccountConfirmationModal from '@/components/DeleteAccountConfirmationModal'; // Import delete confirmation modal
 
 interface AccountModalProps {
   isOpen: boolean;
@@ -50,6 +51,7 @@ export default function AccountModal({ isOpen, onClose, userEmail }: AccountModa
   const [isLoadingUpdate, setIsLoadingUpdate] = useState(false);
   const [createdAt, setCreatedAt] = useState<number | null>(null);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false); // State for delete confirmation modal
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -124,14 +126,14 @@ export default function AccountModal({ isOpen, onClose, userEmail }: AccountModa
   const [usernameFocused, setUsernameFocused] = useState(false);
 
   const styles = {
-    modalOverlay: { position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' } as CSSProperties,
+    modalOverlay: { position: 'fixed', inset: 0, zIndex: 1050, display: 'flex', alignItems: 'center', justifyContent: 'center' } as CSSProperties,
     backdrop: { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' } as CSSProperties,
-    modalContent: { position: 'relative', backgroundColor: 'rgba(0,0,0,0.9)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '0.75rem', width: '100%', maxWidth: '28rem', margin: '1rem', overflow: 'hidden', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)'} as CSSProperties,
+    modalContent: { position: 'relative', backgroundColor: 'rgba(0,0,0,0.9)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '0.75rem', width: 'auto', maxWidth: '28rem', margin: '1rem', overflow: 'hidden', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)'} as CSSProperties,
     closeButton: { position: 'absolute', top: '1rem', right: '1rem', color: '#9ca3af', cursor: 'pointer' } as CSSProperties,
-    contentPadding: { padding: '2rem' } as CSSProperties,
+    contentPadding: { padding: '1.5rem' } as CSSProperties,
     headerSection: { marginBottom: '2rem', textAlign: 'center' } as CSSProperties,
     avatarContainer: { width: '5rem', height: '5rem', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '9999px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem auto'} as CSSProperties,
-    title: { fontSize: '1.875rem', fontWeight: 'bold', color: 'white', fontFamily: 'sans-serif', marginBottom: '0.5rem' } as CSSProperties,
+    title: { fontSize: '1.5rem', fontWeight: 'bold', color: 'white', fontFamily: 'sans-serif', marginBottom: '0.5rem' } as CSSProperties,
     emailText: { color: '#9ca3af', fontSize: '0.875rem' } as CSSProperties,
     createdAtContainer: { marginTop: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', fontSize: '0.875rem' } as CSSProperties,
     loadingContainer: { display: 'flex', justifyContent: 'center', padding: '2rem 0'} as CSSProperties,
@@ -145,9 +147,10 @@ export default function AccountModal({ isOpen, onClose, userEmail }: AccountModa
     inputField: (isError: boolean, isFocused: boolean) => ({ ...baseInputStyle, ...(isError ? errorInputStyle : {}), ...(isFocused ? focusedInputStyle : {}) }),
     errorText: { color: '#ef4444', fontSize: '0.875rem' } as CSSProperties,
     successText: { color: '#22c55e', fontSize: '0.875rem', marginTop: '0.25rem', display: 'flex', alignItems: 'center' } as CSSProperties,
-    buttonGroup: { display: 'flex', gap: '0.5rem' } as CSSProperties,
+    buttonGroup: { display: 'flex', flexDirection: 'column', gap: '0.5rem' } as CSSProperties,
     actionButton: (isPrimary: boolean = true) => ({
-      flex: 1, padding: '0.5rem 1rem',
+      flex: 'none',
+      padding: '0.5rem 1rem',
       backgroundColor: isPrimary ? 'rgba(255,255,255,0.1)' : 'black',
       color: 'white', fontFamily: 'sans-serif', fontWeight: 500, borderRadius: '0.5rem',
       border: '1px solid rgba(255,255,255,0.1)',
@@ -166,6 +169,8 @@ export default function AccountModal({ isOpen, onClose, userEmail }: AccountModa
     menuButtonHover: { backgroundColor: 'rgba(255,255,255,0.2)' } as CSSProperties,
     logoutButton: { backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' } as CSSProperties,
     logoutButtonHover: { backgroundColor: 'rgba(239, 68, 68, 0.2)' } as CSSProperties,
+    deleteButton: { backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', marginTop: '0.75rem' } as CSSProperties, // Added style for delete button
+    deleteButtonHover: { backgroundColor: 'rgba(239, 68, 68, 0.2)' } as CSSProperties,
   };
 
   const handleActionButtonMouseEnter = (e: React.MouseEvent<HTMLButtonElement>, isPrimary: boolean = true) => {
@@ -254,6 +259,14 @@ export default function AccountModal({ isOpen, onClose, userEmail }: AccountModa
                         <Key size={18} /><span>Change Password</span>
                       </button>
                     </div>
+                    {/* Delete Account Button - Added before Log Out */}
+                    <div>
+                      <button onClick={() => setIsDeleteConfirmOpen(true)} style={{...styles.menuButtonBase, ...styles.deleteButton}}
+                              onMouseEnter={(e) => handleMenuButtonMouseEnter(e, true)} // Reuse logout hover for now, can be customized
+                              onMouseLeave={(e) => handleMenuButtonMouseLeave(e, true)}>
+                        <ShieldAlert size={18} /><span>Delete Account</span>
+                      </button>
+                    </div>
                     <div> {/* Removed pt-2 from original, gap is handled by contentBodySpaceY */}
                       <button onClick={handleLogout} style={{...styles.menuButtonBase, ...styles.logoutButton}}
                               onMouseEnter={(e) => handleMenuButtonMouseEnter(e, true)}
@@ -272,11 +285,21 @@ export default function AccountModal({ isOpen, onClose, userEmail }: AccountModa
       <ChangePasswordModal
         isOpen={isOpen && isChangePasswordOpen}
         onClose={() => setIsChangePasswordOpen(false)}
-        userEmail={userEmail} // Pass userEmail to ChangePasswordModal
+        userEmail={userEmail} 
         onSuccess={() => {
           setIsChangePasswordOpen(false);
-          // Optionally show a success message for password change here or rely on ChangePasswordModal
         }}
+      />
+
+      <DeleteAccountConfirmationModal
+        isOpen={isOpen && isDeleteConfirmOpen}
+        onClose={() => {
+            setIsDeleteConfirmOpen(false);
+            // If account was deleted, logoutUser would have been called, 
+            // which might reload or redirect. If not, ensure AccountModal also closes.
+            // onClose(); // This might be needed if logoutUser doesn't force a full UI update that closes AccountModal
+        }}
+        userEmail={userEmail}
       />
     </>
   );
