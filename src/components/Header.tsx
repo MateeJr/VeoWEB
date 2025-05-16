@@ -235,14 +235,30 @@ const Header = () => {
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {hasMounted && <img src="/main_full.png" alt="VEO Logo Dark" style={{ width: '50px', height: '50px', marginRight: isSmallScreen ? '0px' : '10px' }} />}
           {!isSmallScreen && (
-            <div
+            <button
               style={{
                 fontSize: '36px',
                 fontWeight: 'bold',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+                color: 'inherit', // Inherit color from parent
+                transition: 'transform 0.1s ease', // Added for click effect
               }}
+              onMouseDown={(e) => {
+                e.currentTarget.style.transform = 'scale(0.95)';
+              }}
+              onMouseUp={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+              onMouseLeave={(e) => { // Reset if mouse leaves while pressed
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+              // onClick={() => console.log("VEO clicked")} // Example onClick
             >
               VEO
-            </div>
+            </button>
           )}
         </div>
 
