@@ -22,22 +22,22 @@ interface PasswordRequirement {
 // Shared styles (can be moved to a common file if used elsewhere)
 const baseInputStyle: CSSProperties = {
   width: '100%',
-  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  backgroundColor: 'var(--input-background)',
   borderWidth: '1px',
-  borderColor: 'rgba(255, 255, 255, 0.1)',
+  borderColor: 'var(--input-border)',
   borderRadius: '0.5rem', 
   padding: '0.75rem 1rem',
-  color: 'white',
+  color: 'var(--input-foreground)',
   fontFamily: 'sans-serif',
   outline: 'none',
 };
 
 const focusedInputStyle: CSSProperties = {
-  boxShadow: '0 0 0 2px rgba(255, 255, 255, 0.3)', 
+  boxShadow: '0 0 0 2px var(--ring)',
 };
 
 const errorInputStyle: CSSProperties = {
-  borderColor: 'rgb(239 68 68 / 1)', 
+  borderColor: 'var(--destructive)', 
 };
 
 
@@ -202,66 +202,55 @@ export default function ForgotPasswordModal({
 
   const styles = {
     modalOverlay: { position: 'fixed', inset: 0, zIndex: 1050, display: 'flex', alignItems: 'center', justifyContent: 'center' } as CSSProperties,
-    backdrop: { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' } as CSSProperties,
-    modalContent: { position: 'relative', backgroundColor: 'rgba(0,0,0,0.9)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '0.75rem', width: '100%', maxWidth: '28rem', margin: '1rem', overflow: 'hidden', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)' } as CSSProperties,
-    closeButton: { position: 'absolute', top: '1rem', right: '1rem', color: '#9ca3af', cursor: 'pointer' } as CSSProperties,
-    closeButtonHover: { color: 'white' } as CSSProperties,
+    backdrop: { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' } as CSSProperties,
+    modalContent: { position: 'relative', backgroundColor: 'var(--card-background)', border: '1px solid var(--card-border)', borderRadius: '0.75rem', width: '100%', maxWidth: '28rem', margin: '1rem', overflow: 'hidden', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)' } as CSSProperties,
+    closeButton: { position: 'absolute', top: '1rem', right: '1rem', color: 'var(--foreground-secondary)', cursor: 'pointer' } as CSSProperties,
+    closeButtonHover: { color: 'var(--foreground)' } as CSSProperties,
     contentPadding: { padding: '2rem' } as CSSProperties,
     headerContainer: { display: 'flex', alignItems: 'center', marginBottom: '1.5rem' } as CSSProperties,
-    backButton: { marginRight: '0.75rem', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer' } as CSSProperties,
-    title: { fontSize: '1.5rem', fontWeight: 'bold', color: 'white', fontFamily: 'sans-serif' } as CSSProperties,
-    paragraph: { color: '#d1d5db', marginBottom: '1.5rem', fontSize: '0.875rem' } as CSSProperties,
+    backButton: { marginRight: '0.75rem', color: 'var(--foreground-secondary)', background: 'none', border: 'none', cursor: 'pointer' } as CSSProperties,
+    title: { fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--foreground)', fontFamily: 'sans-serif' } as CSSProperties,
+    paragraph: { color: 'var(--foreground-secondary)', marginBottom: '1.5rem', fontSize: '0.875rem' } as CSSProperties,
     formSpaceY: { display: 'flex', flexDirection: 'column', gap: '1.5rem' } as CSSProperties, // space-y-6 for step 1
     formSpaceYStep2: { display: 'flex', flexDirection: 'column', gap: '1.25rem' } as CSSProperties, // space-y-5 for step 2
-    label: { display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#d1d5db', marginBottom: '0.25rem' } as CSSProperties,
+    label: { display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--foreground)', marginBottom: '0.25rem' } as CSSProperties,
     inputIconContainer: { position: 'relative' } as CSSProperties,
     inputIcon: {
       position: 'absolute',
       left: '0.75rem',
       top: '50%',
       transform: 'translateY(-50%)',
-      color: '#9ca3af',
+      color: 'var(--foreground-secondary)',
       display: 'flex',
       alignItems: 'center',
     } as CSSProperties,
     inputWithIcon: { ...baseInputStyle, paddingLeft: '2.5rem' } as CSSProperties,
     otpInput: { ...baseInputStyle, letterSpacing: '0.25em', textAlign: 'center' } as CSSProperties,
-    errorMessage: { marginTop: '0.5rem', color: '#ef4444', fontSize: '0.875rem', display: 'flex', alignItems: 'center' } as CSSProperties,
-    infoBox: { backgroundColor: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '0.5rem', padding: '0.75rem', display: 'flex', alignItems: 'flex-start', fontSize: '0.875rem', color: '#93c5fd' } as CSSProperties,
+    errorMessage: { marginTop: '0.5rem', color: 'var(--destructive)', fontSize: '0.875rem', display: 'flex', alignItems: 'center' } as CSSProperties,
+    infoBox: { backgroundColor: 'var(--accent)', border: '1px solid var(--accent-foreground)', borderRadius: '0.5rem', padding: '0.75rem', display: 'flex', alignItems: 'flex-start', fontSize: '0.875rem', color: 'var(--accent-foreground)' } as CSSProperties,
     infoIcon: { marginRight: '0.5rem', flexShrink: 0, marginTop: '0.125rem' } as CSSProperties,
     submitButton: (isSuccess: boolean) => ({
       width: '100%', padding: '0.75rem 1rem',
-      backgroundColor: isSuccess ? '#16a34a' : 'rgba(255,255,255,0.1)', // green-600
-      color: 'white',
+      backgroundColor: isSuccess ? 'var(--success)' : 'var(--primary)',
+      color: isSuccess ? 'var(--success-foreground)' : 'var(--primary-foreground)',
       fontFamily: 'sans-serif', fontWeight: 500, borderRadius: '0.5rem',
-      border: '1px solid rgba(255,255,255,0.2)',
+      border: '1px solid transparent',
       transition: 'all 0.3s', cursor: 'pointer', outline: 'none',
       position: 'relative', overflow: 'hidden',
       opacity: isLoading ? 0.7 : 1,
     } as CSSProperties),
-    submitButtonHover: (isSuccess: boolean) => ({ backgroundColor: isSuccess ? '#16a34a' : 'rgba(255,255,255,0.2)' }),
+    submitButtonHover: (isSuccess: boolean) => ({ backgroundColor: isSuccess ? 'var(--success-hover)' : 'var(--primary-hover)' }),
     loadingSpinner: { display: 'inline-block', height: '1.25rem', width: '1.25rem', animation: 'spin 1s linear infinite', borderRadius: '9999px', border: '2px solid white', borderTopColor: 'transparent' } as CSSProperties,
     buttonTextWithIcon: { display: 'flex', alignItems: 'center', justifyContent: 'center' } as CSSProperties,
-    backToLoginButton: { width: '100%', fontSize: '0.875rem', textAlign: 'center', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem 0' } as CSSProperties,
-    eyeButton: {
-      position: 'absolute',
-      top: '50%',
-      transform: 'translateY(-50%)',
-      right: '0.75rem',
-      display: 'flex',
-      alignItems: 'center',
-      color: '#9ca3af',
-      background: 'none',
-      border: 'none',
-      cursor: 'pointer',
-    } as CSSProperties,
-    requirementsBox: { marginTop: '0.5rem', backgroundColor: 'rgba(255,255,255,0.05)', padding: '0.75rem', borderRadius: '0.5rem' } as CSSProperties,
-    requirementsTitle: { fontSize: '0.875rem', color: '#d1d5db', marginBottom: '0.5rem' } as CSSProperties,
+    backToLoginButton: { width: '100%', fontSize: '0.875rem', textAlign: 'center', color: 'var(--foreground-secondary)', background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem 0' } as CSSProperties,
+    eyeButton: { position: 'absolute', top: '50%', right: '0.75rem', transform: 'translateY(-50%)', color: 'var(--foreground-secondary)', background: 'none', border: 'none', cursor: 'pointer' } as CSSProperties,
+    apiGlobalError: { marginTop: '0.5rem', color: 'var(--destructive)', fontSize: '0.875rem', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.5rem' } as CSSProperties,
+    requirementsBox: { marginTop: '0.5rem', backgroundColor: 'var(--secondary)', border: '1px solid var(--border)', padding: '0.75rem', borderRadius: '0.5rem' } as CSSProperties,
+    requirementsTitle: { fontSize: '0.875rem', color: 'var(--foreground)', marginBottom: '0.5rem' } as CSSProperties,
     requirementsList: { listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.25rem' } as CSSProperties,
-    requirementItem: (isMet: boolean) => ({ display: 'flex', alignItems: 'center', fontSize: '0.75rem', color: isMet ? '#22c55e' : '#9ca3af' } as CSSProperties),
+    requirementItem: (isMet: boolean) => ({ display: 'flex', alignItems: 'center', fontSize: '0.75rem', color: isMet ? 'var(--success)' : 'var(--foreground-secondary)' } as CSSProperties),
     requirementIconMet: { marginRight: '0.25rem' } as CSSProperties,
-    requirementIconNotMet: { width: '0.75rem', height: '0.75rem', border: '1px solid #9ca3af', borderRadius: '9999px', marginRight: '0.25rem' } as CSSProperties,
-    apiGlobalError: { marginTop: '0.5rem', color: '#ef4444', fontSize: '0.875rem', textAlign: 'center' } as CSSProperties,
+    requirementIconNotMet: { width: '0.75rem', height: '0.75rem', border: '1px solid var(--border)', borderRadius: '9999px', marginRight: '0.25rem' } as CSSProperties,
   };
 
   if (!isOpen) return null;

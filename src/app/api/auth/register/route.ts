@@ -59,12 +59,18 @@ export async function POST(req: NextRequest) {
       username,
       deviceFingerprint: deviceFingerprint || '',
       createdAt: Date.now(),
+      allowLogging: false,  // Default: Logging OFF
+      allowTelemetry: true, // Default: Telemetry ON
     };
 
     users.push(newUser);
     await saveUsers(users);
 
-    return NextResponse.json({ success: true, message: 'User registered successfully' });
+    return NextResponse.json({ 
+      success: true, 
+      message: 'User registered successfully',
+      username: username // Include username in response for auto-login
+    });
 
   } catch (error) {
     console.error('[REGISTER_POST]', error);

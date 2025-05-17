@@ -6,6 +6,8 @@ import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../utils/auth';
+import { useIncognito } from '../contexts/IncognitoContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 // Added basic ChatMessage interface
 interface ChatMessage {
@@ -21,6 +23,8 @@ interface ChatMessage {
 }
 
 const ChatBox: React.FC = () => {
+  // Add theme context
+  const { resolvedTheme } = useTheme();
   const [isSearchToggled, setIsSearchToggled] = useState(false);
   const [isReasonToggled, setIsReasonToggled] = useState(false);
   const [isAgenticResearchToggled, setIsAgenticResearchToggled] = useState(false);
@@ -40,6 +44,8 @@ const ChatBox: React.FC = () => {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
   const { user, loggedIn, loading: authLoading } = useAuth();
+  const { isIncognitoMode } = useIncognito();
+  const [userDisplayName, setUserDisplayName] = useState<string>("User");
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -49,6 +55,14 @@ const ChatBox: React.FC = () => {
     window.addEventListener('resize', checkScreenSize);
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
+
+  useEffect(() => {
+    if (!authLoading && loggedIn && user) {
+      setUserDisplayName(user.username || (user.email ? user.email.split('@')[0] : 'I am Veo'));
+    } else if (!authLoading && !loggedIn) {
+      setUserDisplayName('I am Veo');
+    }
+  }, [authLoading, loggedIn, user]);
 
   const handleSearchToggle = () => {
     setIsSearchToggled(!isSearchToggled);
@@ -74,25 +88,31 @@ const ChatBox: React.FC = () => {
   const agenticResearchDisabled = isSearchToggled || isReasonToggled;
   const paperclipDisabled = isAgenticResearchToggled;
 
-  const baseContainerClasses = [
-    "flex", "flex-col", "w-full", "border", "border-gray-300", "rounded-[2rem]",
-    "overflow-hidden", "bg-white", "transition-shadow", "duration-300", "relative"
-  ];
-  let dynamicContainerClasses = [...baseContainerClasses];
-  if (isMobile && isTextareaFocused) {
-    dynamicContainerClasses.push("shadow-lg");
-  } else {
-    dynamicContainerClasses.push("shadow-none", "hover:shadow-lg");
-  }
+  // Add purple glow if incognito mode is active
+  const incognitoGlowStyle: CSSProperties = isIncognitoMode ? {
+    boxShadow: '0 0 0 2px rgba(160, 32, 240, 0.6), 0 0 10px rgba(160, 32, 240, 0.4), 0 0 20px rgba(160, 32, 240, 0.2)',
+    border: '1px solid rgba(160, 32, 240, 0.8)'
+  } : {};
 
-  const commonBlackButtonStyle = "w-9 h-9 rounded-full bg-black flex items-center justify-center shadow-lg hover:bg-gray-800 transition-colors duration-200 active:scale-95 cursor-pointer";
+  const commonBlackButtonStyle: CSSProperties = {
+    width: '2.25rem',
+    height: '2.25rem',
+    borderRadius: '9999px',
+    backgroundColor: 'var(--primary)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: 'var(--shadow-md)',
+    transition: 'background-color 0.2s ease, transform 0.2s ease',
+    cursor: 'pointer',
+  };
 
   const shimmerTextStyle: CSSProperties = {
     position: 'relative',
     display: 'inline-block',
-    color: '#333',
+    color: 'var(--foreground)',
     fontWeight: 'bold',
-    background: 'linear-gradient(90deg, #333, #777, #333)',
+    background: 'linear-gradient(90deg, var(--foreground), var(--foreground-secondary), var(--foreground))',
     backgroundSize: '200% 100%',
     WebkitBackgroundClip: 'text',
     WebkitTextFillColor: 'transparent',
@@ -119,31 +139,96 @@ const ChatBox: React.FC = () => {
     };
   }, []);
 
+  // Wrapper style to properly center the ChatBox content
+  const wrapperStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 'calc(100vh)',
+    width: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    paddingTop: 0,
+    paddingBottom: 0
+  };
+
+  const containerStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    width: '100%',
+    border: '1px solid var(--card-border)',
+    borderRadius: '2rem',
+    overflow: 'hidden',
+    backgroundColor: 'var(--card-background)',
+    transition: 'box-shadow 0.3s ease',
+    position: 'relative',
+  };
+
+  const dynamicContainerStyle: CSSProperties = {
+    ...containerStyle,
+    boxShadow: isMobile && isTextareaFocused ? 'var(--shadow-lg)' : 'none',
+    ...(isTextareaFocused ? {} : { 
+      ':hover': {
+        boxShadow: 'var(--shadow-lg)'
+      }
+    }),
+  };
+
+  const inputIconStyle: CSSProperties = {
+    color: 'var(--foreground-secondary)',
+    width: '1rem',
+    height: '1rem'
+  };
+
+  // Add custom CSS for textarea placeholder
+  useEffect(() => {
+    // Create a style element
+    const styleEl = document.createElement('style');
+    
+    // Add the CSS rules for the placeholder
+    styleEl.textContent = `
+      textarea::placeholder {
+        color: var(--input-placeholder) !important;
+        opacity: 1 !important;
+        transition: color 0.3s ease !important;
+      }
+    `;
+    
+    // Append to the document head
+    document.head.appendChild(styleEl);
+    
+    return () => {
+      document.head.removeChild(styleEl);
+    };
+  }, [resolvedTheme]); // Re-run when theme changes to ensure it's updated
+
   return (
-    <>
+    <div style={wrapperStyle}>
       <Tooltip 
         id="chatbox-tooltip" 
         style={{ 
           zIndex: 9999, 
           borderRadius: '8px', 
-          boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)' 
+          boxShadow: 'var(--shadow-md)'
         }} 
         variant="light"
       />
-      <div className="flex flex-col items-center justify-center min-h-screen w-full px-4 sm:px-6 md:px-8">
+      <div className="flex flex-col items-center justify-center w-full px-4 sm:px-6 md:px-8">
         <div className="text-center mb-4 flex flex-col">
           <div 
             style={{
               display: 'block',
               marginBottom: '0rem',
-              color: '#333',
+              color: 'var(--foreground)',
               fontWeight: 'bold'
             }} 
             className="text-2xl"
           >
             Hello,{' '}
             <span style={shimmerTextStyle}>
-              {authLoading ? "User" : (loggedIn && user ? (user.username || (user.email ? user.email.split('@')[0] : 'I am Veo')) : 'I am Veo')}
+              {userDisplayName}
             </span>
             .
           </div>
@@ -151,7 +236,7 @@ const ChatBox: React.FC = () => {
           <div 
             style={{
               display: 'block',
-              color: '#333',
+              color: 'var(--foreground)',
               fontWeight: 'bold'
             }} 
             className="text-2xl"
@@ -160,54 +245,74 @@ const ChatBox: React.FC = () => {
           </div>
         </div>
         <div className="w-full md:w-[800px]">
-          <div className={dynamicContainerClasses.join(' ')}>
+          <div 
+            style={{
+              ...dynamicContainerStyle,
+              ...incognitoGlowStyle
+            }}
+          >
             {(isTextareaExpanded || textareaValue.trim().length > 0) && (
               <button
                 type="button"
                 onClick={() => setIsTextareaExpanded(!isTextareaExpanded)}
-                className="absolute top-3 right-3 z-10 p-1.5 rounded-full hover:bg-gray-200 active:scale-90 transition-all"
+                className="absolute top-3 right-3 z-10 p-1.5 rounded-full active:scale-90 transition-all"
                 aria-label={isTextareaExpanded ? "Collapse textarea" : "Expand textarea"}
                 data-tooltip-id="chatbox-tooltip"
                 data-tooltip-content={isTextareaExpanded ? "Collapse" : "Expand"}
                 data-tooltip-place="top"
+                style={{ 
+                  color: 'var(--foreground-secondary)',
+                  backgroundColor: 'var(--background-secondary)',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--secondary)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--background-secondary)'}
               >
                 {isTextareaExpanded ? (
-                  <LuMinimize2 className="w-4 h-4 text-gray-600" />
+                  <LuMinimize2 style={inputIconStyle} />
                 ) : (
-                  <LuMaximize2 className="w-4 h-4 text-gray-600" />
+                  <LuMaximize2 style={inputIconStyle} />
                 )}
               </button>
             )}
             <textarea
-              className="w-full p-4 focus:outline-none resize-none bg-transparent pr-24"
+              className="w-full p-4 focus:outline-none resize-none bg-transparent pr-24 placeholder-theme"
               rows={isTextareaExpanded ? 8 : 1}
-              placeholder="Ask me anything..."
+              placeholder={isIncognitoMode ? "Ask me privately..." : "Ask me anything..."}
               value={textareaValue}
               onChange={(e) => setTextareaValue(e.target.value)}
               onKeyDown={handleTextareaKeyDown}
               onFocus={() => setIsTextareaFocused(true)}
               onBlur={() => setIsTextareaFocused(false)}
+              style={{ 
+                color: 'var(--foreground)', 
+                caretColor: 'var(--primary)',
+                backgroundColor: 'transparent'
+              }}
             />
             <div className="absolute bottom-4 right-4 flex items-center space-x-2">
               <button
                 type="button"
-                className={commonBlackButtonStyle}
+                style={commonBlackButtonStyle}
                 aria-label="Start video input"
                 data-tooltip-id="chatbox-tooltip"
                 data-tooltip-content="Start video input"
                 data-tooltip-place="top"
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary-hover)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.transform = 'translateY(0)'; }}
               >
-                <LuVideo className="w-5 h-5 text-white" />
+                <LuVideo style={{ width: '1.25rem', height: '1.25rem', color: 'var(--primary-foreground)' }} />
               </button>
               <button
                 type="button"
-                className={commonBlackButtonStyle}
+                style={commonBlackButtonStyle}
                 aria-label="Send"
                 data-tooltip-id="chatbox-tooltip"
                 data-tooltip-content="Send Message"
                 data-tooltip-place="top"
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary-hover)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.transform = 'translateY(0)'; }}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="white" className="w-5 h-5">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="white" style={{ width: '1.25rem', height: '1.25rem' }}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-6 6m6-6l6 6" />
                 </svg>
               </button>
@@ -215,92 +320,117 @@ const ChatBox: React.FC = () => {
             <div className="w-full p-4 flex items-center space-x-2">
               <button
                 type="button"
-                className="p-2 rounded-full hover:bg-gray-200 transition-colors transition-transform duration-200 ring-1 ring-gray-300 cursor-pointer active:scale-90"
+                className="p-2 rounded-full transition-colors transition-transform duration-200 ring-1 cursor-pointer active:scale-90"
                 aria-label="New Chat"
                 data-tooltip-id="chatbox-tooltip"
                 data-tooltip-content="New Chat"
                 data-tooltip-place="top"
+                style={{ 
+                  backgroundColor: 'var(--background-secondary)', 
+                  borderColor: 'var(--border)',
+                  color: 'var(--foreground-secondary)'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--secondary)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--background-secondary)'}
               >
-                <LuSquarePen className="w-5 h-5 text-gray-600" />
+                <LuSquarePen style={inputIconStyle} />
               </button>
               <button
                 type="button"
                 disabled={paperclipDisabled}
-                className={`p-2 rounded-full transition-colors transition-transform duration-200 ring-1 ring-gray-300 active:scale-90 ${
+                className={`p-2 rounded-full transition-colors transition-transform duration-200 ring-1 active:scale-90 ${
                   paperclipDisabled
-                    ? 'opacity-50 cursor-not-allowed bg-gray-100'
-                    : 'hover:bg-gray-200 cursor-pointer'
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'cursor-pointer'
                 }`}
                 aria-label="Attach file"
                 data-tooltip-id="chatbox-tooltip"
                 data-tooltip-content="Attach Files"
                 data-tooltip-place="top"
+                style={{ 
+                  backgroundColor: paperclipDisabled ? 'var(--secondary)' : 'var(--background-secondary)', 
+                  borderColor: 'var(--border)',
+                  color: paperclipDisabled ? 'var(--foreground-secondary)' : 'var(--foreground-secondary)'
+                }}
+                onMouseEnter={(e) => !paperclipDisabled && (e.currentTarget.style.backgroundColor = 'var(--secondary)')}
+                onMouseLeave={(e) => !paperclipDisabled && (e.currentTarget.style.backgroundColor = 'var(--background-secondary)')}
               >
-                <LuPaperclip className={`w-5 h-5 ${paperclipDisabled ? 'text-gray-400' : 'text-gray-600'}`} />
+                <LuPaperclip style={inputIconStyle} />
               </button>
               <button
                 type="button"
                 onClick={handleSearchToggle}
                 disabled={searchDisabled}
                 className={`p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center active:scale-95 ${
-                  searchDisabled
-                    ? 'opacity-50 cursor-not-allowed ring-1 ring-gray-300 bg-gray-100'
-                    : isSearchToggled
-                      ? 'bg-sky-100 hover:bg-sky-200 ring-1 ring-sky-500 cursor-pointer'
-                      : 'hover:bg-gray-200 ring-1 ring-gray-300 cursor-pointer'
+                  searchDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                 }`}
                 aria-label="Search"
                 data-tooltip-id="chatbox-tooltip"
                 data-tooltip-content="Always Browse the web"
                 data-tooltip-place="top"
+                style={{ 
+                  backgroundColor: searchDisabled ? 'var(--secondary)' : (isSearchToggled ? 'var(--accent)' : 'var(--background-secondary)'), 
+                  borderWidth: 1,
+                  borderStyle: 'solid',
+                  borderColor: searchDisabled ? 'var(--border)' : (isSearchToggled ? 'var(--accent-foreground)' : 'var(--border)'),
+                  color: searchDisabled ? 'var(--foreground-secondary)' : (isSearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')
+                }}
+                onMouseEnter={(e) => !searchDisabled && (e.currentTarget.style.backgroundColor = isSearchToggled ? 'var(--accent)' : 'var(--secondary)')}
+                onMouseLeave={(e) => !searchDisabled && (e.currentTarget.style.backgroundColor = isSearchToggled ? 'var(--accent)' : 'var(--background-secondary)')}
               >
-                <LuGlobe className={`w-5 h-5 transition-colors ${searchDisabled ? 'text-gray-400' : isSearchToggled ? 'text-sky-700' : 'text-gray-600'}`} />
-                <span className={`hidden sm:inline ml-2 text-sm transition-colors ${searchDisabled ? 'text-gray-400' : isSearchToggled ? 'text-sky-700' : 'text-gray-700'}`}>Search</span>
+                <LuGlobe style={{...inputIconStyle, color: searchDisabled ? 'var(--foreground-secondary)' : (isSearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')}} />
+                <span style={{ color: 'var(--foreground)' }} className={`hidden sm:inline ml-2 text-sm`}>Search</span>
               </button>
               <button
                 type="button"
                 onClick={handleReasonToggle}
                 disabled={reasonDisabled}
-                className={`p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center active:scale-95 ${
-                  reasonDisabled
-                    ? 'opacity-50 cursor-not-allowed ring-1 ring-gray-300 bg-gray-100'
-                    : isReasonToggled
-                      ? 'bg-sky-100 hover:bg-sky-200 ring-1 ring-sky-500 cursor-pointer'
-                      : 'hover:bg-gray-200 ring-1 ring-gray-300 cursor-pointer'
-                }`}
+                className={`p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center active:scale-95 ${reasonDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                 aria-label="Reason"
                 data-tooltip-id="chatbox-tooltip"
                 data-tooltip-content="Think before responding"
                 data-tooltip-place="top"
+                style={{ 
+                  backgroundColor: reasonDisabled ? 'var(--secondary)' : (isReasonToggled ? 'var(--accent)' : 'var(--background-secondary)'), 
+                  borderWidth: 1,
+                  borderStyle: 'solid',
+                  borderColor: reasonDisabled ? 'var(--border)' : (isReasonToggled ? 'var(--accent-foreground)' : 'var(--border)'),
+                  color: reasonDisabled ? 'var(--foreground-secondary)' : (isReasonToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')
+                }}
+                onMouseEnter={(e) => !reasonDisabled && (e.currentTarget.style.backgroundColor = isReasonToggled ? 'var(--accent)' : 'var(--secondary)')}
+                onMouseLeave={(e) => !reasonDisabled && (e.currentTarget.style.backgroundColor = isReasonToggled ? 'var(--accent)' : 'var(--background-secondary)')}
               >
-                <LuLightbulb className={`w-5 h-5 transition-colors ${reasonDisabled ? 'text-gray-400' : isReasonToggled ? 'text-sky-700' : 'text-gray-600'}`} />
-                <span className={`hidden sm:inline ml-2 text-sm transition-colors ${reasonDisabled ? 'text-gray-400' : isReasonToggled ? 'text-sky-700' : 'text-gray-700'}`}>Reason</span>
+                <LuLightbulb style={{...inputIconStyle, color: reasonDisabled ? 'var(--foreground-secondary)' : (isReasonToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')}} />
+                <span style={{ color: 'var(--foreground)' }} className={`hidden sm:inline ml-2 text-sm`}>Reason</span>
               </button>
               <button
                 type="button"
                 onClick={handleAgenticResearchToggle}
                 disabled={agenticResearchDisabled}
-                className={`p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center active:scale-95 ${
-                  agenticResearchDisabled
-                    ? 'opacity-50 cursor-not-allowed ring-1 ring-gray-300 bg-gray-100'
-                    : isAgenticResearchToggled
-                      ? 'bg-sky-100 hover:bg-sky-200 ring-1 ring-sky-500 cursor-pointer'
-                      : 'hover:bg-gray-200 ring-1 ring-gray-300 cursor-pointer'
-                }`}
+                className={`p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center active:scale-95 ${agenticResearchDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                 aria-label="Agentic Search"
                 data-tooltip-id="chatbox-tooltip"
                 data-tooltip-content="Smart Web Search ~ BETA"
                 data-tooltip-place="top"
+                style={{ 
+                  backgroundColor: agenticResearchDisabled ? 'var(--secondary)' : (isAgenticResearchToggled ? 'var(--accent)' : 'var(--background-secondary)'), 
+                  borderWidth: 1,
+                  borderStyle: 'solid',
+                  borderColor: agenticResearchDisabled ? 'var(--border)' : (isAgenticResearchToggled ? 'var(--accent-foreground)' : 'var(--border)'),
+                  color: agenticResearchDisabled ? 'var(--foreground-secondary)' : (isAgenticResearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')
+                }}
+                onMouseEnter={(e) => !agenticResearchDisabled && (e.currentTarget.style.backgroundColor = isAgenticResearchToggled ? 'var(--accent)' : 'var(--secondary)')}
+                onMouseLeave={(e) => !agenticResearchDisabled && (e.currentTarget.style.backgroundColor = isAgenticResearchToggled ? 'var(--accent)' : 'var(--background-secondary)')}
               >
-                <LuSparkles className={`w-5 h-5 transition-colors ${agenticResearchDisabled ? 'text-gray-400' : isAgenticResearchToggled ? 'text-sky-700' : 'text-gray-600'}`} />
-                <span className={`hidden sm:inline ml-2 text-sm transition-colors ${agenticResearchDisabled ? 'text-gray-400' : isAgenticResearchToggled ? 'text-sky-700' : 'text-gray-700'}`}>Agentic Search</span>
+                <LuSparkles style={{...inputIconStyle, color: agenticResearchDisabled ? 'var(--foreground-secondary)' : (isAgenticResearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')}} />
+                <span style={{ color: 'var(--foreground)' }} className={`hidden sm:inline ml-2 text-sm`}>Agentic Search</span>
               </button>
             </div>
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
-export default ChatBox; 
+export default ChatBox;

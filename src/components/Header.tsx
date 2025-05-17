@@ -1,11 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useRef, CSSProperties } from 'react';
-import { LuLock, LuMenu, LuUser, LuHistory, LuChevronDown, LuMessageSquare } from 'react-icons/lu';
+import { LuMenu, LuUser, LuHistory, LuChevronDown, LuMessageSquare, LuEye, LuEyeOff } from 'react-icons/lu';
 import { Tooltip } from 'react-tooltip';
 import { useAuth, User } from '../utils/auth';
 import LoginModal from './LoginModal';
-import AccountModal from './AccountModal';
+import { useIncognito } from '../contexts/IncognitoContext';
+import Menu from './Menu';
+import { AnimatePresence } from 'framer-motion';
+import { useTheme } from '../contexts/ThemeContext';
 
 const Header = () => {
   const [isSmallScreen, setIsSmallScreen] = useState(false);
@@ -15,8 +18,11 @@ const Header = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { user, loggedIn, loading, logout } = useAuth();
+  const { isIncognitoMode, toggleIncognitoMode } = useIncognito();
+  const { resolvedTheme } = useTheme();
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [showMenuPanel, setShowMenuPanel] = useState(false);
+  const [menuInitialTab, setMenuInitialTab] = useState<string | undefined>(undefined);
 
   // State for mobile long-press tooltips
   const [mobileTooltipTargetId, setMobileTooltipTargetId] = useState<string | null>(null);
@@ -37,7 +43,7 @@ const Header = () => {
 
   const iconStyle: React.CSSProperties = {
     fontSize: '22px',
-    color: '#333',
+    color: 'var(--foreground)',
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -84,7 +90,6 @@ const Header = () => {
   useEffect(() => {
     const closeModals = () => {
       setShowLoginModal(false);
-      setShowAccountModal(false);
     };
 
     const handleEscKey = (event: KeyboardEvent) => {
@@ -163,10 +168,11 @@ const Header = () => {
     if (isSmallScreen) {
       setIsDropdownOpen(prev => !prev);
     } else {
-      if (loggedIn) {
-        setShowAccountModal(true);
-      } else {
+      if (!loggedIn) {
         setShowLoginModal(true);
+      } else {
+        setMenuInitialTab('account');
+        setShowMenuPanel(true);
       }
     }
   };
@@ -175,7 +181,7 @@ const Header = () => {
     display: 'flex',
     alignItems: 'center',
     padding: '10px 20px',
-    color: '#333',
+    color: 'var(--foreground)',
     textDecoration: 'none',
     cursor: 'pointer',
     textAlign: 'left',
@@ -187,18 +193,18 @@ const Header = () => {
 
   const dropdownListItemIconStyle: React.CSSProperties = {
     fontSize: '18px',
-    color: '#555',
+    color: 'var(--foreground-secondary)',
     marginRight: '12px',
   };
 
   const handleDropdownItemMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
+    e.currentTarget.style.backgroundColor = 'var(--secondary)';
     e.currentTarget.style.transform = 'scale(0.98)';
   };
 
   const handleDropdownItemMouseUp = (e: React.MouseEvent<HTMLButtonElement>) => {
     const isHovering = e.currentTarget.matches(':hover');
-    e.currentTarget.style.backgroundColor = isHovering ? '#f0f0f0' : 'transparent';
+    e.currentTarget.style.backgroundColor = isHovering ? 'var(--secondary-hover)' : 'transparent';
     e.currentTarget.style.transform = 'scale(1)';
   };
 
@@ -207,7 +213,8 @@ const Header = () => {
     setIsDropdownOpen(false);
     if (action === 'account') {
         if (loggedIn) {
-            setShowAccountModal(true);
+            setMenuInitialTab('account');
+            setShowMenuPanel(true);
         } else {
             setShowLoginModal(true);
         }
@@ -223,17 +230,29 @@ const Header = () => {
           left: 0,
           width: '100%',
           height: '72px',
-          background: 'linear-gradient(to bottom, #f7faff 80%, rgba(247, 250, 255, 0))',
+          background: 'var(--background)',
           zIndex: 1000,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           paddingLeft: '20px',
           paddingRight: '20px',
+          borderBottom: '1px solid var(--border)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          {hasMounted && <img src="/main_full.png" alt="VEO Logo Dark" style={{ width: '50px', height: '50px', marginRight: isSmallScreen ? '0px' : '10px' }} />}
+          {hasMounted && (
+            <img 
+              src="/main_full.png" 
+              alt="VEO Logo" 
+              style={{ 
+                width: '50px', 
+                height: '50px', 
+                marginRight: isSmallScreen ? '0px' : '10px',
+                filter: resolvedTheme === 'dark' ? 'invert(1) brightness(1)' : 'none'
+              }} 
+            />
+          )}
           {!isSmallScreen && (
             <button
               style={{
@@ -270,37 +289,38 @@ const Header = () => {
             transform: 'translate(-50%, -50%)',
             fontSize: '18px',
             fontWeight: 'bold',
-            color: '#333',
+            color: 'var(--foreground)',
           }}
         >
-          {loading ? 'Loading... Do not Refresh' : 'STATUS HERE'}
+          {loading ? '' : 'STATUS HERE'}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', position: 'relative' }}>
           {isSmallScreen ? (
             <button
               ref={accountButtonRef}
-              style={{ ...iconButtonStyle, flexDirection: 'column', padding: '4px' }}
+              style={iconButtonStyle}
               onClick={handleAccountButtonClick}
               onMouseDown={handleMouseDown}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
+              aria-label="Open menu"
             >
-              <LuUser style={iconStyle} />
-              <LuChevronDown style={{ ...iconStyle, fontSize: '14px', marginTop: '0px' }} />
+              <LuMenu style={iconStyle} />
             </button>
           ) : (
             <>
               <button
                 style={iconButtonStyle}
                 data-tooltip-id="header-tooltip"
-                data-tooltip-content="Incognito Chat"
+                data-tooltip-content={isIncognitoMode ? "Disable Incognito Chat" : "Enable Incognito Chat"}
                 data-tooltip-place="bottom"
                 onMouseDown={handleMouseDown}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
+                onClick={toggleIncognitoMode}
               >
-                <LuLock style={iconStyle} />
+                {isIncognitoMode ? <LuEye style={iconStyle} /> : <LuEyeOff style={iconStyle} />}
               </button>
               <button
                 style={iconButtonStyle}
@@ -321,22 +341,27 @@ const Header = () => {
                 onMouseDown={handleMouseDown}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
+                onClick={() => {
+                  setMenuInitialTab(undefined);
+                  setShowMenuPanel(true);
+                }}
               >
                 <LuMenu style={iconStyle} />
               </button>
-              <button
-                ref={accountButtonRef}
-                style={iconButtonStyle}
-                data-tooltip-id="header-tooltip"
-                data-tooltip-content={loading ? "Account" : (loggedIn ? "Account" : "Login / Sign Up")}
-                data-tooltip-place="bottom"
-                onClick={handleAccountButtonClick}
-                onMouseDown={handleMouseDown}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
-              >
-                <LuUser style={iconStyle} />
-              </button>
+              {!loggedIn && (
+                <button
+                  style={iconButtonStyle}
+                  data-tooltip-id="header-tooltip"
+                  data-tooltip-content="Login / Sign Up"
+                  data-tooltip-place="bottom"
+                  onClick={() => setShowLoginModal(true)}
+                  onMouseDown={handleMouseDown}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseUp}
+                >
+                  <LuUser style={iconStyle} />
+                </button>
+              )}
             </>
           )}
           {isSmallScreen && isDropdownOpen && (
@@ -346,21 +371,22 @@ const Header = () => {
                 position: 'absolute',
                 top: 'calc(100% + 10px)',
                 right: 0,
-                background: 'white',
+                background: 'var(--card-background)',
                 borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                boxShadow: 'var(--shadow-lg)',
                 zIndex: 1001,
                 width: '220px',
                 overflow: 'hidden',
+                border: '1px solid var(--card-border)'
               }}
             >
               <button
                 id="mobile-dropdown-account"
-                style={{...dropdownItemStyle, borderBottom: '1px solid #eee'}}
+                style={{...dropdownItemStyle, borderBottom: '1px solid var(--border)'}}
                 onMouseDown={handleDropdownItemMouseDown}
                 onMouseUp={handleDropdownItemMouseUp}
                 onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.transform = 'scale(1)';}}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f0f0f0';}}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--secondary)';}}
                 onClick={() => onDropdownItemClick('account')}
                 onTouchStart={(e) => handleMobileItemTouchStart(e, 'mobile-dropdown-account')}
                 onTouchEnd={() => handleMobileItemTouchEnd('mobile-dropdown-account')}
@@ -371,26 +397,26 @@ const Header = () => {
               </button>
               <button
                 id="mobile-dropdown-incognito"
-                style={{...dropdownItemStyle, borderBottom: '1px solid #eee'}}
+                style={{...dropdownItemStyle, borderBottom: '1px solid var(--border)'}}
                 onMouseDown={handleDropdownItemMouseDown}
                 onMouseUp={handleDropdownItemMouseUp}
                 onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.transform = 'scale(1)';}}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f0f0f0';}}
-                onClick={() => onDropdownItemClick('incognito_chat_small')}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--secondary)';}}
+                onClick={() => { onDropdownItemClick('incognito_chat_small'); toggleIncognitoMode(); }}
                 onTouchStart={(e) => handleMobileItemTouchStart(e, 'mobile-dropdown-incognito')}
                 onTouchEnd={() => handleMobileItemTouchEnd('mobile-dropdown-incognito')}
                 onTouchMove={(e) => handleMobileItemTouchMove(e)}
               >
-                <LuLock style={dropdownListItemIconStyle} />
-                Incognito Chat
+                {isIncognitoMode ? <LuEye style={dropdownListItemIconStyle} /> : <LuEyeOff style={dropdownListItemIconStyle} />}
+                {isIncognitoMode ? "Incognito (On)" : "Incognito Chat"}
               </button>
               <button
                 id="mobile-dropdown-history"
-                style={{...dropdownItemStyle, borderBottom: '1px solid #eee'}}
+                style={{...dropdownItemStyle, borderBottom: '1px solid var(--border)'}}
                 onMouseDown={handleDropdownItemMouseDown}
                 onMouseUp={handleDropdownItemMouseUp}
                 onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.transform = 'scale(1)';}}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f0f0f0';}}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--secondary)';}}
                 onClick={() => onDropdownItemClick('history_small')}
                 onTouchStart={(e) => handleMobileItemTouchStart(e, 'mobile-dropdown-history')}
                 onTouchEnd={() => handleMobileItemTouchEnd('mobile-dropdown-history')}
@@ -400,19 +426,24 @@ const Header = () => {
                 Chat History
               </button>
               <button
-                id="mobile-dropdown-feedback"
+                id="mobile-dropdown-menu"
                 style={dropdownItemStyle}
                 onMouseDown={handleDropdownItemMouseDown}
                 onMouseUp={handleDropdownItemMouseUp}
                 onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.transform = 'scale(1)';}}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f0f0f0';}}
-                onClick={() => onDropdownItemClick('feedback_small')}
-                onTouchStart={(e) => handleMobileItemTouchStart(e, 'mobile-dropdown-feedback')}
-                onTouchEnd={() => handleMobileItemTouchEnd('mobile-dropdown-feedback')}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--secondary)';}}
+                onClick={() => {
+                  setMenuInitialTab(undefined);
+                  setShowMenuPanel(true);
+                  setIsDropdownOpen(false);
+                  console.log('menu_small clicked');
+                }}
+                onTouchStart={(e) => handleMobileItemTouchStart(e, 'mobile-dropdown-menu')}
+                onTouchEnd={() => handleMobileItemTouchEnd('mobile-dropdown-menu')}
                 onTouchMove={(e) => handleMobileItemTouchMove(e)}
               >
-                <LuMessageSquare style={dropdownListItemIconStyle} />
-                Feedback
+                <LuMenu style={dropdownListItemIconStyle} />
+                Menu
               </button>
             </div>
           )}
@@ -433,14 +464,6 @@ const Header = () => {
           onClose={() => setShowLoginModal(false)}
         />
       )}
-      {showAccountModal && user && (
-        <AccountModal
-          isOpen={showAccountModal}
-          onClose={() => setShowAccountModal(false)}
-          userEmail={user.email}
-        />
-      )}
-      {/* Tooltips for mobile dropdown items */}
       <Tooltip 
         anchorSelect="#mobile-dropdown-account" 
         content={loading ? "Account" : (loggedIn ? 'Account' : 'Login / Sign Up')} 
@@ -450,7 +473,7 @@ const Header = () => {
       />
       <Tooltip 
         anchorSelect="#mobile-dropdown-incognito" 
-        content="Incognito Chat" 
+        content={isIncognitoMode ? "Disable Incognito Chat" : "Enable Incognito Chat"} 
         isOpen={mobileTooltipTargetId === 'mobile-dropdown-incognito'} 
         place="left"
         style={{zIndex: 1002}}
@@ -463,12 +486,25 @@ const Header = () => {
         style={{zIndex: 1002}}
       />
       <Tooltip 
-        anchorSelect="#mobile-dropdown-feedback" 
-        content="Feedback" 
-        isOpen={mobileTooltipTargetId === 'mobile-dropdown-feedback'} 
+        anchorSelect="#mobile-dropdown-menu"
+        content="Open Menu"
+        isOpen={mobileTooltipTargetId === 'mobile-dropdown-menu'}
         place="left"
         style={{zIndex: 1002}}
       />
+      <AnimatePresence>
+        {showMenuPanel && (
+          <Menu
+            isOpen={showMenuPanel}
+            onClose={() => {
+              setShowMenuPanel(false);
+              setMenuInitialTab(undefined); // Reset initialTab when closing
+            }}
+            isSmallScreen={isSmallScreen}
+            initialTab={menuInitialTab}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 };

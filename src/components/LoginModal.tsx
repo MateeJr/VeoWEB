@@ -21,22 +21,22 @@ interface PasswordRequirement {
 
 const baseInputStyle: CSSProperties = {
   width: '100%',
-  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  backgroundColor: 'var(--input-background)',
   borderWidth: '1px',
-  borderColor: 'rgba(255, 255, 255, 0.1)',
-  borderRadius: '0.5rem', // 8px
+  borderColor: 'var(--input-border)', 
+  borderRadius: '0.5rem',
   padding: '0.75rem 1rem',
-  color: 'white',
-  fontFamily: 'sans-serif', // Placeholder for cal-sans-regular
+  color: 'var(--input-foreground)',
+  fontFamily: 'sans-serif',
   outline: 'none',
 };
 
 const focusedInputStyle: CSSProperties = {
-  boxShadow: '0 0 0 2px rgba(255, 255, 255, 0.3)', // focus:ring-2 focus:ring-white/30
+  boxShadow: '0 0 0 2px var(--ring)',
 };
 
 const errorInputStyle: CSSProperties = {
-  borderColor: 'rgb(239 68 68 / 1)', // border-red-500
+  borderColor: 'var(--destructive)',
 };
 
 export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
@@ -214,16 +214,16 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     backdrop: {
       position: 'fixed',
       inset: 0,
-      backgroundColor: 'rgba(0,0,0,0.6)',
+      backgroundColor: 'rgba(0,0,0,0.4)',
       backdropFilter: 'blur(4px)',
     } as CSSProperties,
     modalContent: {
       position: 'relative',
-      backgroundColor: 'rgba(0,0,0,0.9)',
-      border: '1px solid rgba(255,255,255,0.2)',
-      borderRadius: '0.75rem', // 12px
+      backgroundColor: 'var(--card-background)',
+      border: '1px solid var(--card-border)',
+      borderRadius: '0.75rem',
       width: '100%',
-      maxWidth: '28rem', // max-w-md (448px)
+      maxWidth: '28rem',
       margin: '1rem',
       overflow: 'hidden',
       boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
@@ -232,19 +232,19 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
       position: 'absolute',
       top: '1rem',
       right: '1rem',
-      color: '#9ca3af', // gray-400
+      color: 'var(--foreground-secondary)',
       cursor: 'pointer',
     } as CSSProperties,
     closeButtonHover: {
-      color: 'white',
+      color: 'var(--foreground)',
     } as CSSProperties,
     contentPadding: { padding: '2rem' } as CSSProperties,
     headerContainer: { marginBottom: '2rem' } as CSSProperties,
     title: {
-      fontSize: '1.875rem', // 3xl
+      fontSize: '1.875rem',
       fontWeight: 'bold',
-      color: 'white',
-      fontFamily: 'sans-serif', // cal-sans-regular
+      color: 'var(--foreground)',
+      fontFamily: 'sans-serif',
       marginBottom: '1.5rem',
       textAlign: 'center',
     } as CSSProperties,
@@ -254,7 +254,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     } as CSSProperties,
     tabInnerContainer: {
       display: 'flex',
-      backgroundColor: 'rgba(255,255,255,0.1)',
+      backgroundColor: 'var(--secondary)',
       padding: '0.25rem',
       borderRadius: '0.5rem',
     } as CSSProperties,
@@ -264,21 +264,21 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
       transition: 'all 0.3s',
       cursor: 'pointer',
       outline: 'none',
-      backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : 'transparent',
-      color: isActive ? 'white' : '#9ca3af', // gray-400
+      backgroundColor: isActive ? 'var(--card-background)' : 'transparent',
+      color: isActive ? 'var(--foreground)' : 'var(--foreground-secondary)',
       fontFamily: 'sans-serif',
     } as CSSProperties),
-    form: { display: 'flex', flexDirection: 'column', gap: '1.25rem' } as CSSProperties, // space-y-5
+    form: { display: 'flex', flexDirection: 'column', gap: '1.25rem' } as CSSProperties,
     label: {
       display: 'block',
-      color: '#d1d5db', // gray-300
-      fontFamily: 'sans-serif', // cal-sans-regular
+      color: 'var(--foreground)',
+      fontFamily: 'sans-serif',
       marginBottom: '0.5rem',
       fontSize: '0.875rem',
     } as CSSProperties,
     inputContainerRelative: { position: 'relative' } as CSSProperties,
     errorMessage: {
-      color: '#ef4444', // red-500
+      color: 'var(--destructive)',
       fontSize: '0.875rem',
       marginTop: '0.25rem',
     } as CSSProperties,
@@ -290,7 +290,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     } as CSSProperties,
     forgotPasswordButton: {
         fontSize: '0.75rem',
-        color: '#60a5fa', // blue-400
+        color: 'var(--primary)',
         background: 'none',
         border: 'none',
         padding: 0,
@@ -301,7 +301,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
         right: '0.75rem',
         top: '50%',
         transform: 'translateY(-50%)',
-        color: '#9ca3af',
+        color: 'var(--foreground-secondary)',
         background: 'none',
         border: 'none',
         padding: 0,
@@ -310,13 +310,13 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     requirementsBox: {
         marginTop: '0.5rem',
         padding: '0.75rem',
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        border: '1px solid rgba(255,255,255,0.1)',
+        backgroundColor: 'var(--secondary)',
+        border: '1px solid var(--border)',
         borderRadius: '0.5rem',
     } as CSSProperties,
     requirementsTitle: {
         fontSize: '0.875rem',
-        color: '#d1d5db', 
+        color: 'var(--foreground)',
         marginBottom: '0.5rem',
         fontWeight: 500,
     } as CSSProperties,
@@ -325,33 +325,33 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
         display: 'flex',
         alignItems: 'center',
         fontSize: '0.875rem',
-        color: isMet ? '#22c55e' : '#9ca3af', // green-500 : gray-400
+        color: isMet ? 'var(--success)' : 'var(--foreground-secondary)',
     } as CSSProperties),
     submitButton: {
       width: '100%',
-      backgroundColor: 'rgba(255,255,255,0.1)',
+      backgroundColor: 'var(--primary)',
       backdropFilter: 'blur(10px)',
-      color: 'white',
-      fontFamily: 'sans-serif', // cal-sans-regular
+      color: 'var(--primary-foreground)',
+      fontFamily: 'sans-serif',
       fontWeight: 500,
       padding: '0.75rem 0',
       borderRadius: '0.5rem',
-      border: '1px solid rgba(255,255,255,0.2)',
+      border: '1px solid transparent',
       transition: 'all 0.3s',
       cursor: 'pointer',
       outline: 'none',
     } as CSSProperties,
     submitButtonHover: {
-        backgroundColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: 'var(--primary-hover)',
     } as CSSProperties,
     switchAuthModeContainer: { marginTop: '1.5rem', textAlign: 'center' } as CSSProperties,
     switchAuthText: {
-        color: '#9ca3af', // gray-400
+        color: 'var(--foreground-secondary)',
         fontFamily: 'sans-serif',
         fontSize: '0.875rem',
     } as CSSProperties,
     switchAuthButton: {
-        color: 'white',
+        color: 'var(--primary)',
         background: 'none',
         border: 'none',
         padding: 0,
@@ -360,7 +360,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
         outline: 'none',
     } as CSSProperties,
     apiError: {
-      color: '#ef4444', // red-500
+      color: 'var(--destructive)',
       fontSize: '0.875rem',
       marginTop: '0.5rem',
       textAlign: 'center',

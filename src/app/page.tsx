@@ -3,7 +3,7 @@ import ChatBox from "@/components/ChatBox";
 
 export default function Home() {
   return (
-    <main style={{ backgroundColor: '#f7faff', width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <main style={{ backgroundColor: 'var(--background)', width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <ChatBox />
     </main>
   );

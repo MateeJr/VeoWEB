@@ -3,4 +3,5 @@ description:
 globs: 
 alwaysApply: true
 ---
-Never add additional features/code if user didn't ask for it.
+-Never add additional features/code if user didn't ask for it.
+-Never ask user to do the modification themselves, AI Should do it since they are agent.

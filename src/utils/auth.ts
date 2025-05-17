@@ -7,6 +7,8 @@ export interface User {
   password?: string; // Hashed password
   deviceFingerprint?: string;
   createdAt?: number;
+  allowLogging?: boolean;  // Add new field for data controls
+  allowTelemetry?: boolean; // Add new field for data controls
   passwordResetOTP?: {
     code: string;
     expiresAt: number;
@@ -47,7 +49,7 @@ const eraseCookie = (name: string) => {
 
 
 // Client-side function to register a new user
-export const registerUser = async (email: string, password: string, username: string): Promise<{ success: boolean; message: string }> => {
+export const registerUser = async (email: string, password: string, username: string): Promise<{ success: boolean; message: string; username?: string }> => {
   try {
     const deviceFingerprint = generateDeviceFingerprint();
     const response = await fetch('/api/auth/register', {
@@ -58,8 +60,12 @@ export const registerUser = async (email: string, password: string, username: st
     const data = await response.json();
     if (!response.ok) throw new Error(data.message || 'Registration failed');
     if (data.success) {
-        // Optionally set cookies or handle login directly after registration
-        // For this example, we assume login is a separate step or handled by the component
+        // Set login cookies directly after successful registration
+        setCookie('isLoggedIn', 'true', 7);
+        setCookie('userEmail', email, 7);
+        if (data.username) {
+          setCookie('username', data.username, 7);
+        }
     }
     return data;
   } catch (error) {
@@ -261,6 +267,22 @@ export const deleteAccount = async (email: string, password: string): Promise<{ 
   }
 };
 
+// Client-side function to update user settings
+export const updateUserSettings = async (email: string, settings: { allowLogging?: boolean; allowTelemetry?: boolean }): Promise<{ success: boolean; message?: string }> => {
+  try {
+    const response = await fetch('/api/auth/update-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, ...settings }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to update settings');
+    return data;
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : 'Failed to update settings. Please try again.' };
+  }
+};
+
 // This function would typically be part of a broader auth context/provider
 // to make auth state easily accessible throughout the app.
 export const useAuth = () => {
@@ -346,18 +368,12 @@ export const useAuth = () => {
         setLoading(true);
         const result = await registerUser(email, pass, uname);
         if (result.success) {
-          // Auto-login after successful registration
-          const loginResult = await loginUser(email, pass);
-          if (loginResult.success) {
-            setLoggedIn(true);
-            const profile = await getCurrentUserProfile();
-            if (profile.success && profile.user) {
-              setUser(profile.user);
-            }
-          } else {
-            // Handle failed auto-login if necessary, though register succeeded
-            console.error("Auto-login after registration failed:", loginResult.message);
-            // Potentially set an error message for the UI to pick up
+          // User is automatically logged in by registerUser function
+          setLoggedIn(true);
+          // Get user profile after successful registration and auto-login
+          const profile = await getCurrentUserProfile();
+          if (profile.success && profile.user) {
+            setUser(profile.user);
           }
         }
         setLoading(false);
@@ -365,7 +381,7 @@ export const useAuth = () => {
     };
 
 
-    return { loggedIn, user, loading, login, logout, register, getCurrentUserProfile, updateUserProfile, requestPasswordReset, resetPasswordWithOTP, changePassword, verifyDevice, deleteAccount };
+    return { loggedIn, user, loading, login, logout, register, getCurrentUserProfile, updateUserProfile, requestPasswordReset, resetPasswordWithOTP, changePassword, verifyDevice, deleteAccount, updateUserSettings };
 };
 
 // You'll need to import React for the useAuth hook if you use it.

@@ -1,9 +1,20 @@
 [
   {
+    "email": "mtelejr@gmail.com",
+    "password": "Ubitopia00",
+    "username": "MateeJr",
+    "deviceFingerprint": "-6d852773",
+    "createdAt": 1747497517780,
+    "allowLogging": false,
+    "allowTelemetry": true
+  },
+  {
     "email": "vallian476@gmail.com",
     "password": "Ubitopia00",
-    "username": "Vallian",
+    "username": "VALLIAN",
     "deviceFingerprint": "3a35682",
-    "createdAt": 1747398708706
+    "createdAt": 1747501247325,
+    "allowLogging": false,
+    "allowTelemetry": true
   }
 ]
