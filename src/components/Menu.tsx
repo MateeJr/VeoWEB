@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, CSSProperties } from 'react';
-import { LuX, LuUser, LuPalette, LuDatabase, LuWand, LuInfo, LuArrowLeft, LuChevronRight, LuClock, LuKey, LuShieldAlert, LuLogOut, LuPencil, LuCheck, LuTriangle, LuSun, LuMoon, LuMonitor, LuClipboard, LuActivity } from 'react-icons/lu';
+import React, { useState, useEffect, CSSProperties, ReactElement } from 'react';
+import { LuX, LuUser, LuPalette, LuDatabase, LuWand, LuInfo, LuArrowLeft, LuChevronRight, LuClock, LuKey, LuShieldAlert, LuLogOut, LuPencil, LuCheck, LuTriangle, LuSun, LuMoon, LuMonitor, LuClipboard, LuActivity, LuGlobe, LuMap, LuMapPin, LuNetwork, LuLaptop, LuCode, LuLogIn } from 'react-icons/lu';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   logoutUser,
@@ -27,6 +27,22 @@ interface MenuProps {
 interface UserProfile extends AuthUserType {
   allowLogging?: boolean;
   allowTelemetry?: boolean;
+}
+
+// After UserProfile interface, add new interfaces for geolocation and device info
+interface GeolocationInfo {
+  ip: string;
+  country: string;
+  city: string;
+  region: string;
+  timezone: string;
+  flag: string;
+}
+
+interface DeviceInfo {
+  browser: string;
+  os: string;
+  device: string;
 }
 
 // Define menu items
@@ -280,6 +296,12 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
   const [isChangePasswordHovered, setIsChangePasswordHovered] = useState(false);
   const [isDeleteAccountHovered, setIsDeleteAccountHovered] = useState(false);
   const [isLogoutHovered, setIsLogoutHovered] = useState(false);
+  
+  // Add new states for geolocation and device information
+  const [geoInfo, setGeoInfo] = useState<GeolocationInfo | null>(null);
+  const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
+  const [isLoadingGeoInfo, setIsLoadingGeoInfo] = useState(true);
+  const [geoInfoError, setGeoInfoError] = useState('');
 
   // Function to save data control settings
   const saveDataControlSettings = async (setting: 'allowLogging' | 'allowTelemetry', value: boolean) => {
@@ -335,6 +357,81 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
     return ''; // Fallback for any other case (e.g. empty string after split)
   };
 
+  // Add the new function to fetch geolocation data before the useEffect
+  const fetchGeoLocationInfo = async () => {
+    setIsLoadingGeoInfo(true);
+    setGeoInfoError('');
+    try {
+      // Use a free geolocation API service
+      const response = await fetch('https://ipapi.co/json/');
+      if (!response.ok) {
+        throw new Error('Failed to fetch location data');
+      }
+      const data = await response.json();
+      
+      // Get browser and device information
+      const userAgent = navigator.userAgent;
+      const browserInfo = detectBrowser(userAgent);
+      const osInfo = detectOS(userAgent);
+      const deviceType = detectDevice(userAgent);
+      
+      setGeoInfo({
+        ip: data.ip,
+        country: data.country_name,
+        city: data.city,
+        region: data.region,
+        timezone: data.timezone,
+        flag: data.country_code.toLowerCase(),
+      });
+      
+      setDeviceInfo({
+        browser: browserInfo,
+        os: osInfo,
+        device: deviceType,
+      });
+    } catch (error) {
+      console.error('Error fetching geo info:', error);
+      setGeoInfoError('Unable to retrieve location data');
+      
+      // Set fallback device info even if geolocation fails
+      const userAgent = navigator.userAgent;
+      setDeviceInfo({
+        browser: detectBrowser(userAgent),
+        os: detectOS(userAgent),
+        device: detectDevice(userAgent),
+      });
+    } finally {
+      setIsLoadingGeoInfo(false);
+    }
+  };
+
+  // Helper functions to detect browser, OS and device
+  const detectBrowser = (userAgent: string): string => {
+    if (userAgent.indexOf("Chrome") > -1) return "Chrome";
+    else if (userAgent.indexOf("Safari") > -1) return "Safari";
+    else if (userAgent.indexOf("Firefox") > -1) return "Firefox";
+    else if (userAgent.indexOf("MSIE") > -1 || userAgent.indexOf("Trident") > -1) return "Internet Explorer";
+    else if (userAgent.indexOf("Edge") > -1) return "Edge";
+    else if (userAgent.indexOf("Opera") > -1 || userAgent.indexOf("OPR") > -1) return "Opera";
+    return "Unknown";
+  };
+
+  const detectOS = (userAgent: string): string => {
+    if (userAgent.indexOf("Windows") > -1) return "Windows";
+    else if (userAgent.indexOf("Mac") > -1) return "MacOS";
+    else if (userAgent.indexOf("Linux") > -1) return "Linux";
+    else if (userAgent.indexOf("Android") > -1) return "Android";
+    else if (userAgent.indexOf("iOS") > -1 || userAgent.indexOf("iPhone") > -1 || userAgent.indexOf("iPad") > -1) return "iOS";
+    return "Unknown";
+  };
+
+  const detectDevice = (userAgent: string): string => {
+    if (userAgent.indexOf("Mobi") > -1 || userAgent.indexOf("Android") > -1) return "Mobile";
+    else if (userAgent.indexOf("iPad") > -1) return "Tablet";
+    return "Desktop";
+  };
+
+  // Modify useEffect to also fetch geolocation data
   useEffect(() => {
     const loadUserData = async () => {
       if (user?.email) { 
@@ -366,6 +463,9 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
         } finally {
           setIsLoadingProfile(false);
         }
+        
+        // Fetch geo location data
+        fetchGeoLocationInfo();
       } else if (!user?.email) {
         // If user is not logged in, clear fields and show appropriate message
         setIsLoadingProfile(false);
@@ -572,149 +672,490 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
     const userInitial = getInitial(currentUsername);
 
     return (
-      <div style={accountModalStyles.accountPageContainer}>
-        <div style={{...accountModalStyles.headerSection, borderBottom: isSmallScreen ? '1px solid var(--border)' : 'none'}}>
-          <div style={{...accountModalStyles.avatarContainer, fontSize: '1.5rem', fontWeight: 'bold' }}> {/* Added fontSize and fontWeight for initial */}
+      <div style={{
+        ...accountModalStyles.accountPageContainer, 
+        padding: '0',
+        backgroundColor: 'var(--card-background)',
+        position: 'relative',
+        overflow: 'visible',
+      }}>
+        {/* Profile Card (replaces banner) */}
+        <div style={{
+          backgroundColor: 'var(--background-secondary)',
+          borderRadius: '0.75rem',
+          padding: isSmallScreen ? '2rem 1.5rem 1.5rem 1.5rem' : '2rem 2.5rem 1.5rem 2.5rem',
+          border: '1px solid var(--card-border)',
+          boxShadow: 'var(--shadow-sm)',
+          margin: isSmallScreen ? '1.5rem 0 1.5rem 0' : '2.5rem auto 2rem auto',
+          maxWidth: '800px',
+          display: 'flex',
+          flexDirection: isSmallScreen ? 'column' : 'row',
+          alignItems: isSmallScreen ? 'center' : 'flex-start',
+          gap: isSmallScreen ? '1.25rem' : '2.5rem',
+          justifyContent: 'flex-start',
+        }}>
+          {/* Avatar */}
+          <div style={{
+            width: '6rem',
+            height: '6rem',
+            backgroundColor: 'var(--accent)',
+            borderRadius: '9999px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 'bold',
+            fontSize: '2.5rem',
+            color: 'var(--accent-foreground)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+            border: '3px solid var(--border)',
+            marginBottom: isSmallScreen ? '0.5rem' : 0,
+          }}>
             {isLoadingProfile ? 
-              <LuUser size={28} /> : // Show icon while loading
-              (userInitial ? userInitial : <LuUser size={28} />)
+              <LuUser size={38} /> : 
+              (userInitial ? userInitial : <LuUser size={38} />)
             }
           </div>
-          <h2 style={accountModalStyles.title}>
-            {isLoadingProfile ? 
-              'Loading...' : 
-              (currentUsername || (user?.email ? 'User Profile' : 'Account'))
-            }
-          </h2>
-          <p style={accountModalStyles.emailText}>{user.email}</p>
-          {createdAt && (
-            <p style={accountModalStyles.accountIdText}>
-              <span style={accountModalStyles.accountIdLabel}>Account ID:</span> {String(createdAt)} {/* Display raw timestamp */}
+          {/* Username & Email */}
+          <div style={{
+            textAlign: isSmallScreen ? 'center' : 'left',
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: isSmallScreen ? 'center' : 'flex-start',
+          }}>
+            <h2 style={{
+              fontSize: '1.5rem',
+              fontWeight: '700',
+              margin: 0,
+              color: 'var(--foreground)',
+              marginBottom: '0.25rem',
+            }}>
+              {isLoadingProfile ? 'Loading...' : (currentUsername || 'User')}
+            </h2>
+            <p style={{
+              fontSize: '1.0625rem',
+              color: 'var(--foreground-secondary)',
+              margin: 0,
+              marginBottom: '0.5rem',
+              wordBreak: 'break-all',
+            }}>
+              {user.email}
             </p>
-          )}
-          {createdAt && (
-            <div style={accountModalStyles.createdAtContainer}>
-              <LuClock size={13} style={{ marginRight: '0.25rem' }} />
-              <span title={formatFullDate(createdAt)}>Account created {formatRelativeTime(createdAt)}</span>
+            {createdAt && (
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                fontSize: '0.95rem',
+                color: 'var(--foreground-secondary)',
+                gap: '0.5rem',
+              }}>
+                <LuClock size={16} />
+                <span title={formatFullDate(createdAt)}>Member since {formatRelativeTime(createdAt)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Main content area with consistent padding */}
+        <div style={{ padding: '2rem' }}>
+          {isLoadingProfile ? (
+            <div style={accountModalStyles.loadingContainer}>
+              <div style={accountModalStyles.loadingText}>Loading account data...</div>
+            </div>
+          ) : (
+            <div style={{ 
+              width: '100%',
+              maxWidth: '800px',
+              margin: '0 auto',
+            }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isSmallScreen ? '1fr' : 'repeat(2, 1fr)',
+                gap: '1.5rem',
+                width: '100%',
+              }}>
+                {/* Left Card: User Profile */}
+                <div style={{
+                  backgroundColor: 'var(--background-secondary)',
+                  borderRadius: '0.75rem',
+                  padding: '1.5rem',
+                  border: '1px solid var(--card-border)',
+                  boxShadow: 'var(--shadow-sm)',
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: isEditingUsername ? '1.5rem' : '1rem',
+                  }}>
+                    <h3 style={{
+                      fontSize: '1.25rem',
+                      fontWeight: '600',
+                      color: 'var(--foreground)',
+                      margin: '0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                    }}>
+                      <LuUser size={20} style={{ color: 'var(--primary)' }} />
+                      User Profile
+                    </h3>
+                    
+                    {!isEditingUsername && (
+                      <button 
+                        onClick={() => { setIsEditingUsername(true); setUsernameSuccess(''); }}
+                        style={{
+                          ...accountModalStyles.editButton,
+                          backgroundColor: 'var(--accent)',
+                          padding: '0.5rem',
+                          borderRadius: '0.375rem',
+                        }}
+                        onMouseEnter={(e) => { 
+                          e.currentTarget.style.color = accountModalStyles.editButtonHover.color as string; 
+                          e.currentTarget.style.backgroundColor = accountModalStyles.editButtonHover.backgroundColor as string;
+                        }} 
+                        onMouseLeave={(e) => { 
+                          e.currentTarget.style.color = (accountModalStyles.editButton as CSSProperties).color as string; 
+                          e.currentTarget.style.backgroundColor = 'var(--accent)';
+                        }}
+                        aria-label="Edit username"
+                      >
+                        <LuPencil size={18} />
+                      </button>
+                    )}
+                  </div>
+                  
+                  {isEditingUsername ? (
+                    <div style={{...accountModalStyles.usernameEditContainerSpaceY, marginTop: '0'}}>
+                      <input 
+                        id="usernameInput"
+                        type="text" 
+                        value={newUsername} 
+                        onChange={(e) => setNewUsername(e.target.value)} 
+                        style={{
+                          ...accountModalStyles.inputField(!!usernameError, usernameFocused),
+                          marginBottom: '0.75rem',
+                          padding: '0.75rem 1rem',
+                          fontSize: '1rem'
+                        }}
+                        placeholder="Enter new username" 
+                        maxLength={20}
+                        onFocus={() => setUsernameFocused(true)} 
+                        onBlur={() => setUsernameFocused(false)} 
+                      />
+                      {usernameError && (
+                        <p style={{...accountModalStyles.errorText, margin: '0 0 0.75rem 0', fontSize: '0.875rem'}}>
+                          <LuTriangle size={14} style={{ marginRight: '0.375rem'}} />
+                          {usernameError}
+                        </p>
+                      )}
+                      <div style={{...accountModalStyles.editActionsGroup, justifyContent: 'center', marginTop: '0.75rem'}}>
+                        <button 
+                            onClick={handleUpdateUsername} 
+                            disabled={isLoadingUpdate} 
+                            style={{...accountModalStyles.smallActionButton(true, isLoadingUpdate), padding: '0.5rem 1.25rem'}}
+                            onMouseEnter={(e) => handleSmallActionButtonMouseEnter(e, true)}
+                            onMouseLeave={(e) => handleSmallActionButtonMouseLeave(e, true)} >
+                          {isLoadingUpdate ? 'Saving...' : 'Save'}
+                        </button>
+                        <button 
+                            onClick={() => { setIsEditingUsername(false); setNewUsername(currentUsername); setUsernameError(''); setUsernameSuccess(''); }}
+                            style={{...accountModalStyles.smallActionButton(false, isLoadingUpdate), padding: '0.5rem 1.25rem'}}
+                            onMouseEnter={(e) => handleSmallActionButtonMouseEnter(e, false)}
+                            onMouseLeave={(e) => handleSmallActionButtonMouseLeave(e, false)} 
+                            disabled={isLoadingUpdate} >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: '1rem' }}>
+                      <div style={{ marginBottom: '1.5rem' }}>
+                        <div style={{ fontSize: '0.9375rem', color: 'var(--foreground-secondary)', marginBottom: '0.375rem', fontWeight: '500' }}>
+                          Username
+                        </div>
+                        <div style={{ 
+                          fontSize: '1.125rem', 
+                          fontWeight: '600', 
+                          color: 'var(--foreground)',
+                          padding: '0.75rem 1rem',
+                          backgroundColor: 'var(--background)',
+                          borderRadius: '0.5rem',
+                          border: '1px solid var(--border)',
+                        }}>
+                          {currentUsername || 'Not set'}
+                        </div>
+                      </div>
+                      
+                      <div style={{ marginBottom: '1.5rem' }}>
+                        <div style={{ fontSize: '0.9375rem', color: 'var(--foreground-secondary)', marginBottom: '0.375rem', fontWeight: '500' }}>
+                          Email
+                        </div>
+                        <div style={{ 
+                          fontSize: '1.125rem', 
+                          fontWeight: '600', 
+                          color: 'var(--foreground)',
+                          padding: '0.75rem 1rem',
+                          backgroundColor: 'var(--background)',
+                          borderRadius: '0.5rem',
+                          border: '1px solid var(--border)',
+                        }}>
+                          {user?.email || 'Not available'}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <div style={{ fontSize: '0.9375rem', color: 'var(--foreground-secondary)', marginBottom: '0.375rem', fontWeight: '500' }}>
+                          Account ID
+                        </div>
+                        <div style={{ 
+                          fontSize: '0.9375rem', 
+                          fontFamily: 'monospace',
+                          fontWeight: '500',
+                          color: 'var(--foreground-secondary)',
+                          padding: '0.75rem 1rem',
+                          backgroundColor: 'var(--background)',
+                          borderRadius: '0.5rem',
+                          border: '1px solid var(--border)',
+                          overflowX: 'auto',
+                        }}>
+                          {String(createdAt) || 'N/A'}
+                        </div>
+                      </div>
+                      
+                      {usernameSuccess && (
+                        <p style={{...accountModalStyles.successText, marginTop: '1rem', display: 'flex', justifyContent: 'center'}}>
+                          <LuCheck size={16} style={{ marginRight: '0.375rem'}}/>
+                          {usernameSuccess}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Right Card: Security & Actions */}
+                <div style={{
+                  backgroundColor: 'var(--background-secondary)',
+                  borderRadius: '0.75rem',
+                  padding: '1.5rem',
+                  border: '1px solid var(--card-border)',
+                  boxShadow: 'var(--shadow-sm)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}>
+                  <h3 style={{
+                    fontSize: '1.25rem',
+                    fontWeight: '600',
+                    color: 'var(--foreground)',
+                    margin: '0 0 1.5rem 0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                  }}>
+                    <LuKey size={20} style={{ color: 'var(--primary)' }} />
+                    Security & Actions
+                  </h3>
+                  
+                  <div style={{ 
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1rem',
+                    flex: 1,
+                    justifyContent: 'center'
+                  }}>
+                    <button 
+                      onClick={() => setIsChangePasswordOpen(true)} 
+                      style={{
+                        ...isChangePasswordHovered ? accountModalStyles.mainActionButtonHover('default') : accountModalStyles.mainActionButton('default'),
+                        padding: '0.875rem 1.25rem',
+                        borderRadius: '0.5rem',
+                        justifyContent: 'center'
+                      }}
+                      onMouseEnter={() => setIsChangePasswordHovered(true)}
+                      onMouseLeave={() => setIsChangePasswordHovered(false)}
+                    >
+                      <LuKey size={18} />
+                      <span style={{fontWeight: '600'}}>Change Password</span>
+                    </button>
+                  
+                    <button 
+                      onClick={() => setIsDeleteConfirmOpen(true)} 
+                      style={{
+                        ...isDeleteAccountHovered ? accountModalStyles.mainActionButtonHover('danger') : accountModalStyles.mainActionButton('danger'),
+                        padding: '0.875rem 1.25rem',
+                        borderRadius: '0.5rem',
+                        justifyContent: 'center'
+                      }}
+                      onMouseEnter={() => setIsDeleteAccountHovered(true)}
+                      onMouseLeave={() => setIsDeleteAccountHovered(false)}
+                    >
+                      <LuShieldAlert size={18} />
+                      <span style={{fontWeight: '600'}}>Delete Account</span>
+                    </button>
+
+                    <button 
+                      onClick={handleLogout} 
+                      style={{
+                        ...isLogoutHovered ? accountModalStyles.mainActionButtonHover('default') : accountModalStyles.mainActionButton('default'),
+                        padding: '0.875rem 1.25rem',
+                        borderRadius: '0.5rem',
+                        justifyContent: 'center'
+                      }}
+                      onMouseEnter={() => setIsLogoutHovered(true)}
+                      onMouseLeave={() => setIsLogoutHovered(false)}
+                    >
+                      <LuLogOut size={18} />
+                      <span style={{fontWeight: '600'}}>Log Out</span>
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Location Info Card */}
+                <div style={{
+                  backgroundColor: 'var(--background-secondary)',
+                  borderRadius: '0.75rem',
+                  padding: '1.5rem',
+                  border: '1px solid var(--card-border)',
+                  boxShadow: 'var(--shadow-sm)',
+                  gridColumn: isSmallScreen ? 'auto' : 'span 2',
+                }}>
+                  <h3 style={{
+                    fontSize: '1.25rem',
+                    fontWeight: '600',
+                    color: 'var(--foreground)',
+                    margin: '0 0 1.5rem 0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                  }}>
+                    <LuMap size={20} style={{ color: 'var(--primary)' }} />
+                    Location Information
+                  </h3>
+                  
+                  {isLoadingGeoInfo ? (
+                    <div style={{ 
+                      display: 'flex', 
+                      justifyContent: 'center', 
+                      padding: '1.5rem 0',
+                      color: 'var(--foreground-secondary)',
+                    }}>
+                      Loading location info...
+                    </div>
+                  ) : geoInfo ? (
+                    <div style={{ 
+                      display: 'grid',
+                      gridTemplateColumns: isSmallScreen ? '1fr' : 'repeat(2, 1fr)',
+                      gap: '1.5rem',
+                    }}>
+                      <InfoRow 
+                        label="IP Address" 
+                        value={geoInfo.ip} 
+                        icon={<LuNetwork size={18} />} 
+                        monospace 
+                      />
+                      <InfoRow 
+                        label="Country" 
+                        value={geoInfo.country} 
+                        icon={<span style={{ 
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '18px',
+                          height: '18px',
+                          marginTop: '2px',
+                        }}>
+                          {geoInfo.flag ? countryFlagEmoji(geoInfo.flag) : '🌍'}
+                        </span>} 
+                      />
+                      <InfoRow 
+                        label="Timezone" 
+                        value={geoInfo.timezone} 
+                        icon={<LuClock size={18} />} 
+                      />
+                    </div>
+                  ) : (
+                    <div style={{ 
+                      padding: '1rem',
+                      backgroundColor: 'var(--accent)',
+                      color: 'var(--accent-foreground)',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.9375rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.625rem',
+                    }}>
+                      <LuInfo size={18} />
+                      <span>
+                        {geoInfoError || 'Unable to retrieve location information'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>
-
-        {isLoadingProfile ? (
-          <div style={accountModalStyles.loadingContainer}><div style={accountModalStyles.loadingText}>Loading account data...</div></div>
-        ) : (
-          <div style={accountModalStyles.mainContentLayout(isSmallScreen)}>
-            {/* Left Column (Username) or Full Width on Mobile */} 
-            <div style={isSmallScreen ? {} : accountModalStyles.leftColumn}>
-              <div style={accountModalStyles.usernameSection}>
-                {isEditingUsername ? (
-                  <div style={accountModalStyles.usernameEditContainerSpaceY}>
-                     <label htmlFor="usernameInput" style={accountModalStyles.usernameLabel}>Edit Username</label>
-                    <input 
-                      id="usernameInput"
-                      type="text" 
-                      value={newUsername} 
-                      onChange={(e) => setNewUsername(e.target.value)} 
-                      style={accountModalStyles.inputField(!!usernameError, usernameFocused)}
-                      placeholder="Enter new username" 
-                      maxLength={20}
-                      onFocus={() => setUsernameFocused(true)} 
-                      onBlur={() => setUsernameFocused(false)} 
-                    />
-                    {usernameError && (
-                      <p style={accountModalStyles.errorText}>
-                        <LuTriangle size={13} style={{ marginRight: '0.25rem'}} />
-                        {usernameError}
-                      </p>
-                    )}
-                    <div style={accountModalStyles.editActionsGroup}>
-                      <button 
-                          onClick={handleUpdateUsername} 
-                          disabled={isLoadingUpdate} 
-                          style={accountModalStyles.smallActionButton(true, isLoadingUpdate)}
-                          onMouseEnter={(e) => handleSmallActionButtonMouseEnter(e, true)}
-                          onMouseLeave={(e) => handleSmallActionButtonMouseLeave(e, true)} >
-                        {isLoadingUpdate ? 'Saving...' : 'Save'}
-                      </button>
-                      <button 
-                          onClick={() => { setIsEditingUsername(false); setNewUsername(currentUsername); setUsernameError(''); setUsernameSuccess(''); }}
-                          style={accountModalStyles.smallActionButton(false, isLoadingUpdate)}
-                          onMouseEnter={(e) => handleSmallActionButtonMouseEnter(e, false)}
-                          onMouseLeave={(e) => handleSmallActionButtonMouseLeave(e, false)} 
-                          disabled={isLoadingUpdate} >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                  <div style={accountModalStyles.usernameDisplayContainer}>
-                    <div style={accountModalStyles.usernameLabelAndValue}>
-                        <p style={accountModalStyles.usernameLabel}>Username</p>
-                        <p style={accountModalStyles.currentUsernameText}>{currentUsername || 'Not set'}</p>
-                    </div>
-                    <button 
-                        onClick={() => { setIsEditingUsername(true); setUsernameSuccess(''); }}
-                        style={accountModalStyles.editButton} 
-                        onMouseEnter={(e) => { e.currentTarget.style.color = accountModalStyles.editButtonHover.color as string; e.currentTarget.style.backgroundColor = accountModalStyles.editButtonHover.backgroundColor as string;}} 
-                        onMouseLeave={(e) => { e.currentTarget.style.color = (accountModalStyles.editButton as CSSProperties).color as string; e.currentTarget.style.backgroundColor = 'transparent';}}
-                        aria-label="Edit username"
-                    >
-                        <LuPencil size={16} />
-                    </button>
-                    </div>
-                    {usernameSuccess && (
-                        <p style={{...accountModalStyles.successText, marginTop: '0.5rem'}}>
-                            <LuCheck size={14} style={{ marginRight: '0.25rem'}}/>
-                            {usernameSuccess}
-                        </p>
-                    )}
-                  </>
-                )}
-              </div>
-              {/* Add other left column items here if any */} 
-            </div>
-
-            {/* Right Column (Actions) or Full Width on Mobile */} 
-            <div style={isSmallScreen ? { display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingTop: '0.5rem' } : accountModalStyles.rightColumn }>
-              <button 
-                onClick={() => setIsChangePasswordOpen(true)} 
-                style={isChangePasswordHovered ? accountModalStyles.mainActionButtonHover('default') : accountModalStyles.mainActionButton('default')} 
-                onMouseEnter={() => setIsChangePasswordHovered(true)}
-                onMouseLeave={() => setIsChangePasswordHovered(false)}
-              >
-                <LuKey size={16} />
-                <span>Change Password</span>
-              </button>
-            
-              <button 
-                onClick={() => setIsDeleteConfirmOpen(true)} 
-                style={isDeleteAccountHovered ? accountModalStyles.mainActionButtonHover('danger') : accountModalStyles.mainActionButton('danger')}
-                onMouseEnter={() => setIsDeleteAccountHovered(true)}
-                onMouseLeave={() => setIsDeleteAccountHovered(false)}
-              >
-                <LuShieldAlert size={16} />
-                <span>Delete Account</span>
-              </button>
-
-              <button 
-                onClick={handleLogout} 
-                style={isLogoutHovered ? accountModalStyles.mainActionButtonHover('default') : accountModalStyles.mainActionButton('default')}
-                onMouseEnter={() => setIsLogoutHovered(true)}
-                onMouseLeave={() => setIsLogoutHovered(false)}
-              >
-                <LuLogOut size={16} />
-                <span>Log Out</span>
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     );
   };
 
+  // Helper function to convert country code to flag emoji
+  const countryFlagEmoji = (countryCode: string): string => {
+    const codePoints = countryCode
+      .toUpperCase()
+      .split('')
+      .map(char => 127397 + char.charCodeAt(0));
+    
+    return String.fromCodePoint(...codePoints);
+  };
+
+  // Helper component for info rows in the cards
+  interface InfoRowProps {
+    label: string;
+    value: string;
+    icon: React.ReactNode;
+    monospace?: boolean;
+    truncate?: boolean;
+  }
+
+  // Improve the InfoRow component styling
+  const InfoRow: React.FC<InfoRowProps> = ({ label, value, icon, monospace = false, truncate = false }) => (
+    <div>
+      <div style={{ 
+        fontSize: '0.9375rem', 
+        color: 'var(--foreground-secondary)', 
+        marginBottom: '0.375rem',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        fontWeight: '500'
+      }}>
+        {icon}
+        {label}
+      </div>
+      <div style={{ 
+        fontSize: monospace ? '0.9375rem' : '1rem', 
+        fontFamily: monospace ? 'monospace' : 'inherit',
+        fontWeight: monospace ? '500' : '600',
+        color: 'var(--foreground)',
+        padding: '0.75rem 1rem',
+        backgroundColor: 'var(--background)',
+        borderRadius: '0.5rem',
+        border: '1px solid var(--border)',
+        whiteSpace: truncate ? 'nowrap' : 'normal',
+        overflow: truncate ? 'hidden' : 'visible',
+        textOverflow: truncate ? 'ellipsis' : 'clip',
+        height: '40px',
+        display: 'flex',
+        alignItems: 'center',
+      }}>
+        {value}
+      </div>
+    </div>
+  );
+
   const renderAppearanceContent = () => {
-    const ThemeOption: React.FC<ThemeOptionProps> = ({ mode, currentTheme, onClick, icon, label, description, isSmallScreen }) => {
+    const ThemeOption = ({ mode, currentTheme, onClick, icon, label, description, isSmallScreen }: ThemeOptionProps): ReactElement => {
       const isSelected = mode === currentTheme;
       
       return (
@@ -1187,27 +1628,20 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
   };
 
   const renderSubpageContent = (selectedItem: { id: string; name: string; icon: React.ElementType } | undefined) => {
-    if (selectedItem?.id === 'account') {
-      return renderAccountContent();
+    switch (selectedItem?.id) {
+      case 'account':
+        return renderAccountContent();
+      case 'appearance':
+        return renderAppearanceContent();
+      case 'dataControls':
+        return renderDataControlsContent();
+      case 'customization':
+        return renderCustomizationContent();
+      case 'about':
+        return renderAboutContent();
+      default:
+        return null;
     }
-    if (selectedItem?.id === 'appearance') {
-      return renderAppearanceContent();
-    }
-    if (selectedItem?.id === 'about') {
-      return renderAboutContent();
-    }
-    if (selectedItem?.id === 'dataControls') {
-      return renderDataControlsContent();
-    }
-    if (selectedItem?.id === 'customization') {
-      return renderCustomizationContent();
-    }
-    // Default content for other subpages
-    return (
-      <div style={{ padding: '20px', textAlign: 'center', color: 'var(--foreground-secondary)', marginTop: '40px' }}>
-        {selectedItem?.name} content will appear here
-      </div>
-    );
   };
 
   const renderMobileSubpage = () => {

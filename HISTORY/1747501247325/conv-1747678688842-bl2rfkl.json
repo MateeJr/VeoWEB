@@ -1,0 +1,18 @@
+{
+  "id": "conv-1747678688842-bl2rfkl",
+  "title": "Hi",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hi",
+      "timestamp": "2025-05-19T18:18:10.883Z"
+    },
+    {
+      "role": "model",
+      "content": "Hello! How can I help you today?",
+      "timestamp": "2025-05-19T18:18:22.721Z"
+    }
+  ],
+  "createdAt": "2025-05-19T18:18:10.883Z",
+  "updatedAt": "2025-05-19T18:18:23.855Z"
+}

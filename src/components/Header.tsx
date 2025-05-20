@@ -7,8 +7,11 @@ import { useAuth, User } from '../utils/auth';
 import LoginModal from './LoginModal';
 import { useIncognito } from '../contexts/IncognitoContext';
 import Menu from './Menu';
+import HistoryPanel from './HistoryPanel';
 import { AnimatePresence } from 'framer-motion';
 import { useTheme } from '../contexts/ThemeContext';
+import { usePathname } from 'next/navigation';
+import { loadConversation } from '../utils/HistoryManager';
 
 const Header = () => {
   const [isSmallScreen, setIsSmallScreen] = useState(false);
@@ -16,18 +19,51 @@ const Header = () => {
   const [hasMounted, setHasMounted] = useState(false);
   const accountButtonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [conversationTitle, setConversationTitle] = useState<string | null>(null);
 
-  const { user, loggedIn, loading, logout } = useAuth();
+  const { user, loggedIn, loading } = useAuth();
   const { isIncognitoMode, toggleIncognitoMode } = useIncognito();
   const { resolvedTheme } = useTheme();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showMenuPanel, setShowMenuPanel] = useState(false);
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
   const [menuInitialTab, setMenuInitialTab] = useState<string | undefined>(undefined);
+  const pathname = usePathname();
 
   // State for mobile long-press tooltips
   const [mobileTooltipTargetId, setMobileTooltipTargetId] = useState<string | null>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartPosRef = useRef<{ x: number, y: number } | null>(null); // For touchMove threshold
+
+  // Check if current page is a chat page and fetch conversation title
+  useEffect(() => {
+    const fetchConversationTitle = async () => {
+      // Handle existing chat pages with ID
+      if (pathname && pathname.startsWith('/chat/')) {
+        const conversationId = pathname.split('/')[2];
+        if (conversationId && user?.createdAt) {
+          try {
+            const conversation = await loadConversation(user.createdAt.toString(), conversationId);
+            if (conversation) {
+              setConversationTitle(conversation.title);
+              return;
+            }
+          } catch (error) {
+            console.error('Failed to load conversation for header:', error);
+          }
+        }
+      } 
+      // Handle main page (new chat)
+      else if (pathname === '/') {
+        setConversationTitle('New Conversation');
+        return;
+      }
+      // If not a chat page or failed to load, clear the title
+      setConversationTitle(null);
+    };
+
+    fetchConversationTitle();
+  }, [pathname, user]);
 
   const iconButtonStyle: React.CSSProperties = {
     background: 'none',
@@ -124,6 +160,32 @@ const Header = () => {
     };
   }, []);
 
+  // Close tooltips when clicking outside buttons
+  useEffect(() => {
+    const handleDocumentClick = (event: MouseEvent) => {
+      // Only run this on mobile
+      if (!isSmallScreen || !mobileTooltipTargetId) return;
+      
+      // Check if click is on a button or inside a tooltip
+      const target = event.target as HTMLElement;
+      const isButtonOrTooltip = (
+        target.tagName === 'BUTTON' || 
+        target.closest('button') || 
+        target.closest('[data-tooltip-id]') ||
+        target.closest('.react-tooltip')
+      );
+      
+      if (!isButtonOrTooltip) {
+        setMobileTooltipTargetId(null);
+      }
+    };
+    
+    document.addEventListener('click', handleDocumentClick);
+    return () => {
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, [isSmallScreen, mobileTooltipTargetId]);
+
   const handleMobileItemTouchStart = (e: React.TouchEvent<HTMLButtonElement>, buttonId: string) => {
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
@@ -145,6 +207,13 @@ const Header = () => {
         setMobileTooltipTargetId(null);
       }
     } 
+    else if (mobileTooltipTargetId === buttonId) {
+      // If tooltip is showing (long press completed), close it after a short delay
+      // This allows the tooltip to be visible when clicking the button
+      setTimeout(() => {
+        setMobileTooltipTargetId(null);
+      }, 1500); // 1.5 seconds to keep tooltip visible after tap
+    }
     // If long press timer already fired, mobileTooltipTargetId is set.
     // The original onClick for the button will handle its action.
     // Tooltip will close if dropdown closes or via outside click if Tooltip component handles it.
@@ -175,6 +244,10 @@ const Header = () => {
         setShowMenuPanel(true);
       }
     }
+  };
+
+  const handleHistoryButtonClick = () => {
+    setShowHistoryPanel(true);
   };
 
   const dropdownItemStyle: React.CSSProperties = {
@@ -218,6 +291,8 @@ const Header = () => {
         } else {
             setShowLoginModal(true);
         }
+    } else if (action === 'history' || action === 'history_small') {
+        setShowHistoryPanel(true);
     }
   };
 
@@ -281,19 +356,27 @@ const Header = () => {
           )}
         </div>
 
-        <div
-          style={{
-            position: 'absolute',
-            left: '50%',
-            top: '50%',
-            transform: 'translate(-50%, -50%)',
-            fontSize: '18px',
-            fontWeight: 'bold',
-            color: 'var(--foreground)',
-          }}
-        >
-          {loading ? '' : 'STATUS HERE'}
-        </div>
+        {conversationTitle && (
+          <div
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              fontSize: '18px',
+              fontWeight: 'bold',
+              color: 'var(--foreground)',
+              maxWidth: '50%',
+              textOverflow: 'ellipsis',
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              textAlign: 'center'
+            }}
+            title={conversationTitle}
+          >
+            {conversationTitle}
+          </div>
+        )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', position: 'relative' }}>
           {isSmallScreen ? (
@@ -319,6 +402,9 @@ const Header = () => {
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
                 onClick={toggleIncognitoMode}
+                onTouchStart={isSmallScreen ? (e) => handleMobileItemTouchStart(e, 'incognito-button') : undefined}
+                onTouchEnd={isSmallScreen ? () => handleMobileItemTouchEnd('incognito-button') : undefined}
+                onTouchMove={isSmallScreen ? handleMobileItemTouchMove : undefined}
               >
                 {isIncognitoMode ? <LuEye style={iconStyle} /> : <LuEyeOff style={iconStyle} />}
               </button>
@@ -330,6 +416,10 @@ const Header = () => {
                 onMouseDown={handleMouseDown}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
+                onClick={handleHistoryButtonClick}
+                onTouchStart={isSmallScreen ? (e) => handleMobileItemTouchStart(e, 'history-button') : undefined}
+                onTouchEnd={isSmallScreen ? () => handleMobileItemTouchEnd('history-button') : undefined}
+                onTouchMove={isSmallScreen ? handleMobileItemTouchMove : undefined}
               >
                 <LuHistory style={iconStyle} />
               </button>
@@ -345,6 +435,9 @@ const Header = () => {
                   setMenuInitialTab(undefined);
                   setShowMenuPanel(true);
                 }}
+                onTouchStart={isSmallScreen ? (e) => handleMobileItemTouchStart(e, 'menu-button') : undefined}
+                onTouchEnd={isSmallScreen ? () => handleMobileItemTouchEnd('menu-button') : undefined}
+                onTouchMove={isSmallScreen ? handleMobileItemTouchMove : undefined}
               >
                 <LuMenu style={iconStyle} />
               </button>
@@ -358,6 +451,9 @@ const Header = () => {
                   onMouseDown={handleMouseDown}
                   onMouseUp={handleMouseUp}
                   onMouseLeave={handleMouseUp}
+                  onTouchStart={isSmallScreen ? (e) => handleMobileItemTouchStart(e, 'login-button') : undefined}
+                  onTouchEnd={isSmallScreen ? () => handleMobileItemTouchEnd('login-button') : undefined}
+                  onTouchMove={isSmallScreen ? handleMobileItemTouchMove : undefined}
                 >
                   <LuUser style={iconStyle} />
                 </button>
@@ -456,6 +552,8 @@ const Header = () => {
             borderRadius: '8px',
             boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)',
           }}
+          clickable={isSmallScreen}
+          delayShow={isSmallScreen ? 9999999 : undefined}
         />
       </header>
       {showLoginModal && (
@@ -464,34 +562,6 @@ const Header = () => {
           onClose={() => setShowLoginModal(false)}
         />
       )}
-      <Tooltip 
-        anchorSelect="#mobile-dropdown-account" 
-        content={loading ? "Account" : (loggedIn ? 'Account' : 'Login / Sign Up')} 
-        isOpen={mobileTooltipTargetId === 'mobile-dropdown-account'} 
-        place="left"
-        style={{zIndex: 1002}} // Ensure it's above dropdown background
-      />
-      <Tooltip 
-        anchorSelect="#mobile-dropdown-incognito" 
-        content={isIncognitoMode ? "Disable Incognito Chat" : "Enable Incognito Chat"} 
-        isOpen={mobileTooltipTargetId === 'mobile-dropdown-incognito'} 
-        place="left"
-        style={{zIndex: 1002}}
-      />
-      <Tooltip 
-        anchorSelect="#mobile-dropdown-history" 
-        content="Chat History" 
-        isOpen={mobileTooltipTargetId === 'mobile-dropdown-history'} 
-        place="left"
-        style={{zIndex: 1002}}
-      />
-      <Tooltip 
-        anchorSelect="#mobile-dropdown-menu"
-        content="Open Menu"
-        isOpen={mobileTooltipTargetId === 'mobile-dropdown-menu'}
-        place="left"
-        style={{zIndex: 1002}}
-      />
       <AnimatePresence>
         {showMenuPanel && (
           <Menu
@@ -505,6 +575,43 @@ const Header = () => {
           />
         )}
       </AnimatePresence>
+      
+      <HistoryPanel 
+        isOpen={showHistoryPanel}
+        onClose={() => setShowHistoryPanel(false)}
+        isSmallScreen={isSmallScreen}
+        onOpenLoginModal={() => setShowLoginModal(true)}
+      />
+      
+      {/* Mobile tooltips for desktop header buttons */}
+      <Tooltip 
+        anchorSelect="button[data-tooltip-content='Disable Incognito Chat'], button[data-tooltip-content='Enable Incognito Chat']" 
+        content={isIncognitoMode ? "Disable Incognito Chat" : "Enable Incognito Chat"} 
+        isOpen={mobileTooltipTargetId === 'incognito-button'} 
+        place="bottom"
+        style={{zIndex: 1002}}
+      />
+      <Tooltip 
+        anchorSelect="button[data-tooltip-content='Chat History']" 
+        content="Chat History" 
+        isOpen={mobileTooltipTargetId === 'history-button'} 
+        place="bottom"
+        style={{zIndex: 1002}}
+      />
+      <Tooltip 
+        anchorSelect="button[data-tooltip-content='Menu']" 
+        content="Menu" 
+        isOpen={mobileTooltipTargetId === 'menu-button'} 
+        place="bottom"
+        style={{zIndex: 1002}}
+      />
+      <Tooltip 
+        anchorSelect="button[data-tooltip-content='Login / Sign Up']" 
+        content="Login / Sign Up" 
+        isOpen={mobileTooltipTargetId === 'login-button'} 
+        place="bottom"
+        style={{zIndex: 1002}}
+      />
     </>
   );
 };

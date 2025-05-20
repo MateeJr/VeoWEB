@@ -8,21 +8,29 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../utils/auth';
 import { useIncognito } from '../contexts/IncognitoContext';
 import { useTheme } from '../contexts/ThemeContext';
+import ChatArea from './ChatArea';
+import { v4 as uuidv4 } from 'uuid';
+import { processWithGemini, processWithHistory } from '../utils/GeminiHandler';
+import { convertChatMessagesToHistory, ConversationHistory, generateConversationId } from '../utils/HistoryManager';
+import LoginModal from './LoginModal';
 
-// Added basic ChatMessage interface
+// ChatMessage interface
 interface ChatMessage {
   id: string;
   text: string;
   isUser: boolean;
   timestamp: Date; 
-  // Add other properties like reactions, attachments, type, etc. as needed
-  feedback?: 'liked' | 'disliked' | null;
   isThinking?: boolean;
   type?: 'text' | 'image' | 'file';
   fileInfo?: { name: string; type: string; size: number };
 }
 
-const ChatBox: React.FC = () => {
+// Add props interface for ChatBox
+interface ChatBoxProps {
+  initialConversation?: ConversationHistory | null;
+}
+
+const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
   // Add theme context
   const { resolvedTheme } = useTheme();
   const [isSearchToggled, setIsSearchToggled] = useState(false);
@@ -42,10 +50,21 @@ const ChatBox: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  // Mobile tooltip state
+  const [mobileTooltipTargetId, setMobileTooltipTargetId] = useState<string | null>(null);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPosRef = useRef<{ x: number, y: number } | null>(null);
+  const [hasMessages, setHasMessages] = useState(false);
+  const [bottomPosition, setBottomPosition] = useState(false);
+  const [isEditingMessage, setIsEditingMessage] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [originalMessages, setOriginalMessages] = useState<ChatMessage[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   const { user, loggedIn, loading: authLoading } = useAuth();
   const { isIncognitoMode } = useIncognito();
-  const [userDisplayName, setUserDisplayName] = useState<string>("User");
+  const [userDisplayName, setUserDisplayName] = useState<string>("Loading...");
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -55,6 +74,110 @@ const ChatBox: React.FC = () => {
     window.addEventListener('resize', checkScreenSize);
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
+
+  // Initialize with conversation if provided
+  useEffect(() => {
+    if (initialConversation) {
+      // Set conversation ID
+      setConversationId(initialConversation.id);
+      
+      // Convert MessageHistory[] to ChatMessage[]
+      const convertedMessages = initialConversation.messages.map(msg => ({
+        id: uuidv4(),
+        text: msg.content,
+        isUser: msg.role === 'user',
+        timestamp: new Date(msg.timestamp)
+      }));
+      
+      setMessages(convertedMessages);
+      setHasMessages(convertedMessages.length > 0);
+      setBottomPosition(true);
+      
+      console.log(`Loaded conversation: ${initialConversation.id} with ${convertedMessages.length} messages`);
+    } else {
+      // No conversation provided, generate a new ID
+      setConversationId(generateConversationId());
+    }
+  }, [initialConversation]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Close tooltips when clicking outside buttons
+  useEffect(() => {
+    const handleDocumentClick = (event: MouseEvent) => {
+      // Only run this on mobile
+      if (!isMobile || !mobileTooltipTargetId) return;
+      
+      // Check if click is on a button or inside a tooltip
+      const target = event.target as HTMLElement;
+      const isButtonOrTooltip = (
+        target.tagName === 'BUTTON' || 
+        target.closest('button') || 
+        target.closest('[data-tooltip-id]') ||
+        target.closest('.react-tooltip')
+      );
+      
+      if (!isButtonOrTooltip) {
+        setMobileTooltipTargetId(null);
+      }
+    };
+    
+    document.addEventListener('click', handleDocumentClick);
+    return () => {
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, [isMobile, mobileTooltipTargetId]);
+
+  const handleMobileItemTouchStart = (e: React.TouchEvent<HTMLButtonElement>, buttonId: string) => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+    }
+    touchStartPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    longPressTimerRef.current = setTimeout(() => {
+      setMobileTooltipTargetId(buttonId);
+      longPressTimerRef.current = null; 
+    }, 500); // 500ms for long press
+  };
+
+  const handleMobileItemTouchEnd = (buttonId: string) => {
+    if (longPressTimerRef.current) { // Timer was pending (short tap)
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+      // If a tooltip for this button is already open from a previous long press,
+      // and this is a short tap, then close it.
+      if (mobileTooltipTargetId === buttonId) {
+        setMobileTooltipTargetId(null);
+      }
+    } 
+    else if (mobileTooltipTargetId === buttonId) {
+      // If tooltip is showing (long press completed), close it after a short delay
+      // This allows the tooltip to be visible when clicking the button
+      setTimeout(() => {
+        setMobileTooltipTargetId(null);
+      }, 1500); // 1.5 seconds to keep tooltip visible after tap
+    }
+    touchStartPosRef.current = null;
+  };
+
+  const handleMobileItemTouchMove = (e: React.TouchEvent<HTMLButtonElement>) => {
+    if (longPressTimerRef.current && touchStartPosRef.current) {
+      const threshold = 10; // pixels
+      const deltaX = Math.abs(e.touches[0].clientX - touchStartPosRef.current.x);
+      const deltaY = Math.abs(e.touches[0].clientY - touchStartPosRef.current.y);
+      if (deltaX > threshold || deltaY > threshold) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+        touchStartPosRef.current = null;
+      }
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && loggedIn && user) {
@@ -76,10 +199,16 @@ const ChatBox: React.FC = () => {
     setIsAgenticResearchToggled(!isAgenticResearchToggled);
   };
 
+  // Add handler for the New Chat button
+  const handleNewChat = () => {
+    // Refresh the page by redirecting to the homepage
+    window.location.href = '/';
+  };
+
   const handleTextareaKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      console.log('Enter pressed, message would send:', textareaValue);
+      handleSendMessage();
     }
   };
 
@@ -139,21 +268,22 @@ const ChatBox: React.FC = () => {
     };
   }, []);
 
-  // Wrapper style to properly center the ChatBox content
+  // Modified wrapper style for conditional positioning
   const wrapperStyle: CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
-    justifyContent: 'center',
+    justifyContent: hasMessages ? 'flex-end' : 'center', // Center when no messages, bottom when chatting
     alignItems: 'center',
-    minHeight: 'calc(100vh)',
+    minHeight: '100vh',
     width: '100%',
     position: 'absolute',
     top: 0,
     left: 0,
-    paddingTop: 0,
-    paddingBottom: 0
+    paddingBottom: hasMessages ? '1rem' : 0,
+    overflowX: 'hidden'
   };
 
+  // Modified container style
   const containerStyle: CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
@@ -164,6 +294,24 @@ const ChatBox: React.FC = () => {
     backgroundColor: 'var(--card-background)',
     transition: 'box-shadow 0.3s ease',
     position: 'relative',
+    zIndex: 10
+  };
+
+  // Input container style - only fixed position when there are messages
+  const inputContainerStyle: CSSProperties = hasMessages ? {
+    position: 'fixed',
+    bottom: '1rem',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: '100%',
+    maxWidth: '800px',
+    padding: '0 1rem',
+    zIndex: 20,
+  } : {
+    width: '100%',
+    maxWidth: '800px',
+    padding: '0 1rem',
+    zIndex: 20,
   };
 
   const dynamicContainerStyle: CSSProperties = {
@@ -204,8 +352,289 @@ const ChatBox: React.FC = () => {
     };
   }, [resolvedTheme]); // Re-run when theme changes to ensure it's updated
 
+  // Handle editing a message
+  const handleEditMessage = (messageId: string, text: string) => {
+    // Find the message to edit
+    const messageIndex = messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1) return;
+    
+    // Store original messages for potential cancellation
+    setOriginalMessages([...messages]);
+    
+    // Set the editing state and ID
+    setIsEditingMessage(true);
+    setEditingMessageId(messageId);
+    
+    // Set the textarea value to the message content
+    setTextareaValue(text);
+    
+    // Focus the textarea
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      textarea.focus();
+    }
+  };
+
+  // Update handleRegenerateMessage to use Gemini
+  const handleRegenerateMessage = async () => {
+    // Find the last user message before the AI message
+    const messagesCopy = [...messages];
+    messagesCopy.pop(); // Remove the most recent AI message
+    
+    // Find the last user message
+    let lastUserMessageIndex = -1;
+    for (let i = messagesCopy.length - 1; i >= 0; i--) {
+      if (messagesCopy[i].isUser) {
+        lastUserMessageIndex = i;
+        break;
+      }
+    }
+    
+    if (lastUserMessageIndex === -1) return;
+    
+    const lastUserMessage = messagesCopy[lastUserMessageIndex];
+    setMessages(messagesCopy); // Remove the AI message
+    
+    // Add thinking indicator
+    const thinkingMessageId = uuidv4();
+    const thinkingMessage: ChatMessage = {
+      id: thinkingMessageId,
+      text: '',
+      isUser: false,
+      timestamp: new Date(),
+      isThinking: true
+    };
+    
+    setMessages(prev => [...prev, thinkingMessage]);
+    
+    try {
+      // Get response from Gemini
+      const response = await processWithGemini(lastUserMessage.text);
+      
+      // Update messages with Gemini response
+      setMessages(prevMessages => {
+        const filteredMessages = prevMessages.filter(m => m.id !== thinkingMessageId);
+        const aiResponse: ChatMessage = {
+          id: uuidv4(),
+          text: response,
+          isUser: false,
+          timestamp: new Date(),
+        };
+        return [...filteredMessages, aiResponse];
+      });
+    } catch (error) {
+      console.error('Error getting Gemini response:', error);
+      // Handle error with fallback response
+      setMessages(prevMessages => {
+        const filteredMessages = prevMessages.filter(m => m.id !== thinkingMessageId);
+        const aiResponse: ChatMessage = {
+          id: uuidv4(),
+          text: 'Sorry, I encountered an issue regenerating a response.',
+          isUser: false,
+          timestamp: new Date(),
+        };
+        return [...filteredMessages, aiResponse];
+      });
+    }
+  };
+
+  // Update handleSendMessage to handle editing and use Gemini
+  const handleSendMessage = async () => {
+    if (textareaValue.trim() === '') return;
+    
+    // Check if user is logged in before allowing to send message
+    if (!loggedIn) {
+      setIsLoginModalOpen(true);
+      return;
+    }
+    
+    if (isEditingMessage && editingMessageId) {
+      // Handle message editing
+      // Find the index of the editing message
+      const editIndex = messages.findIndex(m => m.id === editingMessageId);
+      if (editIndex === -1) return;
+
+      // Create a copy of messages and update the edited message
+      const updatedMessages = [...messages];
+      updatedMessages[editIndex] = {
+        ...updatedMessages[editIndex],
+        text: textareaValue
+      };
+
+      // Remove all messages after the edited message
+      const newMessages = updatedMessages.slice(0, editIndex + 1);
+      setMessages(newMessages);
+      setHasMessages(true);
+      setBottomPosition(true);
+      
+      // Add thinking indicator
+      const thinkingMessageId = uuidv4();
+      const thinkingMessage: ChatMessage = {
+        id: thinkingMessageId,
+        text: '',
+        isUser: false,
+        timestamp: new Date(),
+        isThinking: true
+      };
+      
+      setMessages(prevMessages => [...prevMessages, thinkingMessage]);
+      
+      // Reset states
+      setTextareaValue('');
+      setIsTextareaExpanded(false);
+      setIsEditingMessage(false);
+      setEditingMessageId(null);
+      
+      try {
+        // Convert previous messages to history format for context
+        const historyMessages = convertChatMessagesToHistory(newMessages);
+        
+        // Get response from Gemini with history
+        const response = await processWithHistory(updatedMessages[editIndex].text, historyMessages);
+        
+        // Update messages with Gemini response
+        setMessages(prevMessages => {
+          const filteredMessages = prevMessages.filter(m => m.id !== thinkingMessageId);
+          const aiResponse: ChatMessage = {
+            id: uuidv4(),
+            text: response,
+            isUser: false,
+            timestamp: new Date(),
+          };
+          return [...filteredMessages, aiResponse];
+        });
+      } catch (error) {
+        console.error('Error getting Gemini response:', error);
+        // Handle error with fallback response
+        setMessages(prevMessages => {
+          const filteredMessages = prevMessages.filter(m => m.id !== thinkingMessageId);
+          const aiResponse: ChatMessage = {
+            id: uuidv4(),
+            text: 'Sorry, I encountered an issue processing your request.',
+            isUser: false,
+            timestamp: new Date(),
+          };
+          return [...filteredMessages, aiResponse];
+        });
+      }
+      
+      return;
+    }
+    
+    // Regular new message flow
+    const newUserMessage: ChatMessage = {
+      id: uuidv4(),
+      text: textareaValue,
+      isUser: true,
+      timestamp: new Date()
+    };
+    
+    const userMessageText = textareaValue;
+    setMessages(prevMessages => [...prevMessages, newUserMessage]);
+    setTextareaValue('');
+    setIsTextareaExpanded(false);
+    setHasMessages(true);
+    setBottomPosition(true);
+    
+    // Simulate AI response
+    setIsResponding(true);
+    
+    // Add AI thinking indicator
+    const thinkingMessageId = uuidv4();
+    const thinkingMessage: ChatMessage = {
+      id: thinkingMessageId,
+      text: '',
+      isUser: false,
+      timestamp: new Date(),
+      isThinking: true
+    };
+    
+    setMessages(prevMessages => [...prevMessages, thinkingMessage]);
+    
+    try {
+      // Convert previous messages to history format for context
+      const historyMessages = convertChatMessagesToHistory(messages);
+      
+      // Get response from Gemini with history
+      const response = await processWithHistory(userMessageText, historyMessages);
+      
+      // Update messages with Gemini response
+      setMessages(prevMessages => {
+        const filteredMessages = prevMessages.filter(m => m.id !== thinkingMessageId);
+        const aiResponse: ChatMessage = {
+          id: uuidv4(),
+          text: response,
+          isUser: false,
+          timestamp: new Date(),
+        };
+        return [...filteredMessages, aiResponse];
+      });
+    } catch (error) {
+      console.error('Error getting Gemini response:', error);
+      // Handle error with fallback response
+      setMessages(prevMessages => {
+        const filteredMessages = prevMessages.filter(m => m.id !== thinkingMessageId);
+        const aiResponse: ChatMessage = {
+          id: uuidv4(),
+          text: 'Sorry, I encountered an issue processing your request.',
+          isUser: false,
+          timestamp: new Date(),
+        };
+        return [...filteredMessages, aiResponse];
+      });
+    } finally {
+      setIsResponding(false);
+    }
+  };
+
+  // Cancel editing function
+  const handleCancelEdit = () => {
+    setIsEditingMessage(false);
+    setEditingMessageId(null);
+    setTextareaValue('');
+    setMessages(originalMessages);
+  };
+
+  // Handle login modal
+  const handleLoginModalClose = () => {
+    setIsLoginModalOpen(false);
+  };
+
+  const openLoginModal = () => {
+    setIsLoginModalOpen(true);
+  };
+
+  // Authentication modal that appears when user tries to send a message
+  const AuthModal = () => (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="max-w-md w-full p-8 rounded-lg shadow-lg bg-card border border-card-border text-center space-y-6 animate-in fade-in zoom-in duration-300">
+        <h2 className="text-2xl font-bold text-foreground">Authentication Required</h2>
+        <p className="text-foreground-secondary mb-4">
+          You need to sign in to send messages.
+        </p>
+        <div className="flex justify-center gap-4">
+          <button
+            onClick={handleLoginModalClose}
+            className="py-3 px-4 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/90 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={openLoginModal}
+            className="py-3 px-4 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors shadow-sm cursor-pointer font-medium"
+          >
+            Sign In
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div style={wrapperStyle}>
+      {isLoginModalOpen && <AuthModal />}
+      {isLoginModalOpen && <LoginModal isOpen={isLoginModalOpen} onClose={handleLoginModalClose} />}
+      
       <Tooltip 
         id="chatbox-tooltip" 
         style={{ 
@@ -214,221 +643,352 @@ const ChatBox: React.FC = () => {
           boxShadow: 'var(--shadow-md)'
         }} 
         variant="light"
+        clickable={isMobile ? true : undefined}
+        delayShow={isMobile ? 9999999 : undefined}
       />
       <div className="flex flex-col items-center justify-center w-full px-4 sm:px-6 md:px-8">
-        <div className="text-center mb-4 flex flex-col">
-          <div 
-            style={{
-              display: 'block',
-              marginBottom: '0rem',
-              color: 'var(--foreground)',
-              fontWeight: 'bold'
-            }} 
-            className="text-2xl"
-          >
-            Hello,{' '}
-            <span style={shimmerTextStyle}>
-              {userDisplayName}
-            </span>
-            .
-          </div>
-          <br />
-          <div 
-            style={{
-              display: 'block',
-              color: 'var(--foreground)',
-              fontWeight: 'bold'
-            }} 
-            className="text-2xl"
-          >
-            How can I help you today?
-          </div>
-        </div>
-        <div className="w-full md:w-[800px]">
-          <div 
-            style={{
-              ...dynamicContainerStyle,
-              ...incognitoGlowStyle
-            }}
-          >
-            {(isTextareaExpanded || textareaValue.trim().length > 0) && (
-              <button
-                type="button"
-                onClick={() => setIsTextareaExpanded(!isTextareaExpanded)}
-                className="absolute top-3 right-3 z-10 p-1.5 rounded-full active:scale-90 transition-all"
-                aria-label={isTextareaExpanded ? "Collapse textarea" : "Expand textarea"}
-                data-tooltip-id="chatbox-tooltip"
-                data-tooltip-content={isTextareaExpanded ? "Collapse" : "Expand"}
-                data-tooltip-place="top"
-                style={{ 
-                  color: 'var(--foreground-secondary)',
-                  backgroundColor: 'var(--background-secondary)',
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--secondary)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--background-secondary)'}
-              >
-                {isTextareaExpanded ? (
-                  <LuMinimize2 style={inputIconStyle} />
-                ) : (
-                  <LuMaximize2 style={inputIconStyle} />
-                )}
-              </button>
-            )}
-            <textarea
-              className="w-full p-4 focus:outline-none resize-none bg-transparent pr-24 placeholder-theme"
-              rows={isTextareaExpanded ? 8 : 1}
-              placeholder={isIncognitoMode ? "Ask me privately..." : "Ask me anything..."}
-              value={textareaValue}
-              onChange={(e) => setTextareaValue(e.target.value)}
-              onKeyDown={handleTextareaKeyDown}
-              onFocus={() => setIsTextareaFocused(true)}
-              onBlur={() => setIsTextareaFocused(false)}
-              style={{ 
-                color: 'var(--foreground)', 
-                caretColor: 'var(--primary)',
-                backgroundColor: 'transparent'
-              }}
-            />
-            <div className="absolute bottom-4 right-4 flex items-center space-x-2">
-              <button
-                type="button"
-                style={commonBlackButtonStyle}
-                aria-label="Start video input"
-                data-tooltip-id="chatbox-tooltip"
-                data-tooltip-content="Start video input"
-                data-tooltip-place="top"
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary-hover)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-              >
-                <LuVideo style={{ width: '1.25rem', height: '1.25rem', color: 'var(--primary-foreground)' }} />
-              </button>
-              <button
-                type="button"
-                style={commonBlackButtonStyle}
-                aria-label="Send"
-                data-tooltip-id="chatbox-tooltip"
-                data-tooltip-content="Send Message"
-                data-tooltip-place="top"
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary-hover)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="white" style={{ width: '1.25rem', height: '1.25rem' }}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-6 6m6-6l6 6" />
-                </svg>
-              </button>
+        {!hasMessages && (
+          <div className="text-center mb-4 flex flex-col">
+            <div 
+              style={{
+                display: 'block',
+                marginBottom: '0rem',
+                color: 'var(--foreground)',
+                fontWeight: 'bold'
+              }} 
+              className="text-2xl"
+            >
+              Hello,{' '}
+              <span style={shimmerTextStyle}>
+                {userDisplayName}
+              </span>
+              .
             </div>
-            <div className="w-full p-4 flex items-center space-x-2">
-              <button
-                type="button"
-                className="p-2 rounded-full transition-colors transition-transform duration-200 ring-1 cursor-pointer active:scale-90"
-                aria-label="New Chat"
-                data-tooltip-id="chatbox-tooltip"
-                data-tooltip-content="New Chat"
-                data-tooltip-place="top"
+            <br />
+            <div 
+              style={{
+                display: 'block',
+                color: 'var(--foreground)',
+                fontWeight: 'bold'
+              }} 
+              className="text-2xl"
+            >
+              How can I help you today?
+            </div>
+          </div>
+        )}
+        
+        <div className="w-full md:w-[800px]">
+          <ChatArea 
+            messages={messages} 
+            isVisible={hasMessages}
+            onEditMessage={handleEditMessage}
+            onRegenerateMessage={handleRegenerateMessage}
+            userId={user?.createdAt?.toString() || `guest-${Date.now()}`}
+            conversationId={conversationId || undefined}
+            isIncognitoMode={isIncognitoMode}
+          />
+          
+          <div style={inputContainerStyle}>
+            <div 
+              style={{
+                ...dynamicContainerStyle,
+                ...incognitoGlowStyle
+              }}
+            >
+              {isEditingMessage && (
+                <div className="bg-accent/20 text-accent px-4 py-3 text-sm font-medium flex items-center justify-between border-b border-accent/30">
+                  <div className="flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    <span>Editing message</span>
+                  </div>
+                  <button
+                    onClick={handleCancelEdit}
+                    className="bg-accent/10 hover:bg-accent/20 text-accent font-medium px-3 py-1 rounded-md cursor-pointer transition-colors flex items-center"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                    Cancel
+                  </button>
+                </div>
+              )}
+              
+              {(isTextareaExpanded || textareaValue.trim().length > 0) && (
+                <button
+                  id="expand-button"
+                  type="button"
+                  onClick={() => setIsTextareaExpanded(!isTextareaExpanded)}
+                  className="absolute top-3 right-3 z-10 p-1.5 rounded-full active:scale-90 transition-all"
+                  aria-label={isTextareaExpanded ? "Collapse textarea" : "Expand textarea"}
+                  data-tooltip-id="chatbox-tooltip"
+                  data-tooltip-content={isTextareaExpanded ? "Collapse" : "Expand"}
+                  data-tooltip-place="top"
+                  style={{ 
+                    color: 'var(--foreground-secondary)',
+                    backgroundColor: 'var(--background-secondary)',
+                    top: isEditingMessage ? 'calc(2.5rem + 6px)' : '0.75rem',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--secondary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--background-secondary)'}
+                  onTouchStart={isMobile ? (e) => handleMobileItemTouchStart(e, 'expand-button') : undefined}
+                  onTouchEnd={isMobile ? () => handleMobileItemTouchEnd('expand-button') : undefined}
+                  onTouchMove={isMobile ? handleMobileItemTouchMove : undefined}
+                >
+                  {isTextareaExpanded ? (
+                    <LuMinimize2 style={inputIconStyle} />
+                  ) : (
+                    <LuMaximize2 style={inputIconStyle} />
+                  )}
+                </button>
+              )}
+              <textarea
+                className="w-full p-4 focus:outline-none resize-none bg-transparent pr-24 placeholder-theme"
+                rows={isTextareaExpanded ? 8 : 1}
+                placeholder={isEditingMessage ? "Edit your message..." : (isIncognitoMode ? "Ask me privately..." : "Ask me anything...")}
+                value={textareaValue}
+                onChange={(e) => setTextareaValue(e.target.value)}
+                onKeyDown={handleTextareaKeyDown}
+                onFocus={() => setIsTextareaFocused(true)}
+                onBlur={() => setIsTextareaFocused(false)}
                 style={{ 
-                  backgroundColor: 'var(--background-secondary)', 
-                  borderColor: 'var(--border)',
-                  color: 'var(--foreground-secondary)'
+                  color: 'var(--foreground)', 
+                  caretColor: 'var(--primary)',
+                  backgroundColor: 'transparent'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--secondary)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--background-secondary)'}
-              >
-                <LuSquarePen style={inputIconStyle} />
-              </button>
-              <button
-                type="button"
-                disabled={paperclipDisabled}
-                className={`p-2 rounded-full transition-colors transition-transform duration-200 ring-1 active:scale-90 ${
-                  paperclipDisabled
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'cursor-pointer'
-                }`}
-                aria-label="Attach file"
-                data-tooltip-id="chatbox-tooltip"
-                data-tooltip-content="Attach Files"
-                data-tooltip-place="top"
-                style={{ 
-                  backgroundColor: paperclipDisabled ? 'var(--secondary)' : 'var(--background-secondary)', 
-                  borderColor: 'var(--border)',
-                  color: paperclipDisabled ? 'var(--foreground-secondary)' : 'var(--foreground-secondary)'
-                }}
-                onMouseEnter={(e) => !paperclipDisabled && (e.currentTarget.style.backgroundColor = 'var(--secondary)')}
-                onMouseLeave={(e) => !paperclipDisabled && (e.currentTarget.style.backgroundColor = 'var(--background-secondary)')}
-              >
-                <LuPaperclip style={inputIconStyle} />
-              </button>
-              <button
-                type="button"
-                onClick={handleSearchToggle}
-                disabled={searchDisabled}
-                className={`p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center active:scale-95 ${
-                  searchDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                }`}
-                aria-label="Search"
-                data-tooltip-id="chatbox-tooltip"
-                data-tooltip-content="Always Browse the web"
-                data-tooltip-place="top"
-                style={{ 
-                  backgroundColor: searchDisabled ? 'var(--secondary)' : (isSearchToggled ? 'var(--accent)' : 'var(--background-secondary)'), 
-                  borderWidth: 1,
-                  borderStyle: 'solid',
-                  borderColor: searchDisabled ? 'var(--border)' : (isSearchToggled ? 'var(--accent-foreground)' : 'var(--border)'),
-                  color: searchDisabled ? 'var(--foreground-secondary)' : (isSearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')
-                }}
-                onMouseEnter={(e) => !searchDisabled && (e.currentTarget.style.backgroundColor = isSearchToggled ? 'var(--accent)' : 'var(--secondary)')}
-                onMouseLeave={(e) => !searchDisabled && (e.currentTarget.style.backgroundColor = isSearchToggled ? 'var(--accent)' : 'var(--background-secondary)')}
-              >
-                <LuGlobe style={{...inputIconStyle, color: searchDisabled ? 'var(--foreground-secondary)' : (isSearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')}} />
-                <span style={{ color: 'var(--foreground)' }} className={`hidden sm:inline ml-2 text-sm`}>Search</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleReasonToggle}
-                disabled={reasonDisabled}
-                className={`p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center active:scale-95 ${reasonDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                aria-label="Reason"
-                data-tooltip-id="chatbox-tooltip"
-                data-tooltip-content="Think before responding"
-                data-tooltip-place="top"
-                style={{ 
-                  backgroundColor: reasonDisabled ? 'var(--secondary)' : (isReasonToggled ? 'var(--accent)' : 'var(--background-secondary)'), 
-                  borderWidth: 1,
-                  borderStyle: 'solid',
-                  borderColor: reasonDisabled ? 'var(--border)' : (isReasonToggled ? 'var(--accent-foreground)' : 'var(--border)'),
-                  color: reasonDisabled ? 'var(--foreground-secondary)' : (isReasonToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')
-                }}
-                onMouseEnter={(e) => !reasonDisabled && (e.currentTarget.style.backgroundColor = isReasonToggled ? 'var(--accent)' : 'var(--secondary)')}
-                onMouseLeave={(e) => !reasonDisabled && (e.currentTarget.style.backgroundColor = isReasonToggled ? 'var(--accent)' : 'var(--background-secondary)')}
-              >
-                <LuLightbulb style={{...inputIconStyle, color: reasonDisabled ? 'var(--foreground-secondary)' : (isReasonToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')}} />
-                <span style={{ color: 'var(--foreground)' }} className={`hidden sm:inline ml-2 text-sm`}>Reason</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleAgenticResearchToggle}
-                disabled={agenticResearchDisabled}
-                className={`p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center active:scale-95 ${agenticResearchDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                aria-label="Agentic Search"
-                data-tooltip-id="chatbox-tooltip"
-                data-tooltip-content="Smart Web Search ~ BETA"
-                data-tooltip-place="top"
-                style={{ 
-                  backgroundColor: agenticResearchDisabled ? 'var(--secondary)' : (isAgenticResearchToggled ? 'var(--accent)' : 'var(--background-secondary)'), 
-                  borderWidth: 1,
-                  borderStyle: 'solid',
-                  borderColor: agenticResearchDisabled ? 'var(--border)' : (isAgenticResearchToggled ? 'var(--accent-foreground)' : 'var(--border)'),
-                  color: agenticResearchDisabled ? 'var(--foreground-secondary)' : (isAgenticResearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')
-                }}
-                onMouseEnter={(e) => !agenticResearchDisabled && (e.currentTarget.style.backgroundColor = isAgenticResearchToggled ? 'var(--accent)' : 'var(--secondary)')}
-                onMouseLeave={(e) => !agenticResearchDisabled && (e.currentTarget.style.backgroundColor = isAgenticResearchToggled ? 'var(--accent)' : 'var(--background-secondary)')}
-              >
-                <LuSparkles style={{...inputIconStyle, color: agenticResearchDisabled ? 'var(--foreground-secondary)' : (isAgenticResearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')}} />
-                <span style={{ color: 'var(--foreground)' }} className={`hidden sm:inline ml-2 text-sm`}>Agentic Search</span>
-              </button>
+              />
+              <div className="absolute bottom-4 right-4 flex items-center space-x-2">
+                <button
+                  id="video-input-button"
+                  type="button"
+                  style={commonBlackButtonStyle}
+                  aria-label="Start video input"
+                  data-tooltip-id="chatbox-tooltip"
+                  data-tooltip-content="Start video input"
+                  data-tooltip-place="top"
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary-hover)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                  onTouchStart={isMobile ? (e) => handleMobileItemTouchStart(e, 'video-input-button') : undefined}
+                  onTouchEnd={isMobile ? () => handleMobileItemTouchEnd('video-input-button') : undefined}
+                  onTouchMove={isMobile ? handleMobileItemTouchMove : undefined}
+                >
+                  <LuVideo style={{ width: '1.25rem', height: '1.25rem', color: 'var(--primary-foreground)' }} />
+                </button>
+                <button
+                  id="send-button"
+                  type="button"
+                  style={commonBlackButtonStyle}
+                  aria-label="Send"
+                  data-tooltip-id="chatbox-tooltip"
+                  data-tooltip-content={isEditingMessage ? "Update message" : "Send Message"}
+                  data-tooltip-place="top"
+                  onClick={handleSendMessage}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary-hover)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                  onTouchStart={isMobile ? (e) => handleMobileItemTouchStart(e, 'send-button') : undefined}
+                  onTouchEnd={isMobile ? () => handleMobileItemTouchEnd('send-button') : undefined}
+                  onTouchMove={isMobile ? handleMobileItemTouchMove : undefined}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="white" style={{ width: '1.25rem', height: '1.25rem' }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-6 6m6-6l6 6" />
+                  </svg>
+                </button>
+              </div>
+              <div className="w-full p-4 flex items-center space-x-2">
+                <button
+                  id="new-chat-button"
+                  type="button"
+                  className="p-2 rounded-full transition-colors transition-transform duration-200 ring-1 cursor-pointer active:scale-90"
+                  aria-label="New Chat"
+                  data-tooltip-id="chatbox-tooltip"
+                  data-tooltip-content="New Chat"
+                  data-tooltip-place="top"
+                  onClick={handleNewChat}
+                  style={{ 
+                    backgroundColor: 'var(--background-secondary)', 
+                    borderColor: 'var(--border)',
+                    color: 'var(--foreground-secondary)'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--secondary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--background-secondary)'}
+                  onTouchStart={isMobile ? (e) => handleMobileItemTouchStart(e, 'new-chat-button') : undefined}
+                  onTouchEnd={isMobile ? () => handleMobileItemTouchEnd('new-chat-button') : undefined}
+                  onTouchMove={isMobile ? handleMobileItemTouchMove : undefined}
+                >
+                  <LuSquarePen style={inputIconStyle} />
+                </button>
+                <button
+                  id="attach-file-button"
+                  type="button"
+                  disabled={paperclipDisabled}
+                  className={`p-2 rounded-full transition-colors transition-transform duration-200 ring-1 active:scale-90 ${
+                    paperclipDisabled
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'cursor-pointer'
+                  }`}
+                  aria-label="Attach file"
+                  data-tooltip-id="chatbox-tooltip"
+                  data-tooltip-content="Attach Files"
+                  data-tooltip-place="top"
+                  style={{ 
+                    backgroundColor: paperclipDisabled ? 'var(--secondary)' : 'var(--background-secondary)', 
+                    borderColor: 'var(--border)',
+                    color: paperclipDisabled ? 'var(--foreground-secondary)' : 'var(--foreground-secondary)'
+                  }}
+                  onMouseEnter={(e) => !paperclipDisabled && (e.currentTarget.style.backgroundColor = 'var(--secondary)')}
+                  onMouseLeave={(e) => !paperclipDisabled && (e.currentTarget.style.backgroundColor = 'var(--background-secondary)')}
+                  onTouchStart={!paperclipDisabled && isMobile ? (e) => handleMobileItemTouchStart(e, 'attach-file-button') : undefined}
+                  onTouchEnd={!paperclipDisabled && isMobile ? () => handleMobileItemTouchEnd('attach-file-button') : undefined}
+                  onTouchMove={!paperclipDisabled && isMobile ? handleMobileItemTouchMove : undefined}
+                >
+                  <LuPaperclip style={inputIconStyle} />
+                </button>
+                <button
+                  id="search-button"
+                  type="button"
+                  onClick={handleSearchToggle}
+                  disabled={searchDisabled}
+                  className={`p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center active:scale-95 ${
+                    searchDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                  }`}
+                  aria-label="Search"
+                  data-tooltip-id="chatbox-tooltip"
+                  data-tooltip-content="Always Browse the web"
+                  data-tooltip-place="top"
+                  style={{ 
+                    backgroundColor: searchDisabled ? 'var(--secondary)' : (isSearchToggled ? 'var(--accent)' : 'var(--background-secondary)'), 
+                    borderWidth: 1,
+                    borderStyle: 'solid',
+                    borderColor: searchDisabled ? 'var(--border)' : (isSearchToggled ? 'var(--accent-foreground)' : 'var(--border)'),
+                    color: searchDisabled ? 'var(--foreground-secondary)' : (isSearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')
+                  }}
+                  onMouseEnter={(e) => !searchDisabled && (e.currentTarget.style.backgroundColor = isSearchToggled ? 'var(--accent)' : 'var(--secondary)')}
+                  onMouseLeave={(e) => !searchDisabled && (e.currentTarget.style.backgroundColor = isSearchToggled ? 'var(--accent)' : 'var(--background-secondary)')}
+                  onTouchStart={!searchDisabled && isMobile ? (e) => handleMobileItemTouchStart(e, 'search-button') : undefined}
+                  onTouchEnd={!searchDisabled && isMobile ? () => handleMobileItemTouchEnd('search-button') : undefined}
+                  onTouchMove={!searchDisabled && isMobile ? handleMobileItemTouchMove : undefined}
+                >
+                  <LuGlobe style={{...inputIconStyle, color: searchDisabled ? 'var(--foreground-secondary)' : (isSearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')}} />
+                  <span style={{ color: 'var(--foreground)' }} className={`hidden sm:inline ml-2 text-sm`}>Search</span>
+                </button>
+                <button
+                  id="reason-button"
+                  type="button"
+                  onClick={handleReasonToggle}
+                  disabled={reasonDisabled}
+                  className={`p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center active:scale-95 ${reasonDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  aria-label="Reason"
+                  data-tooltip-id="chatbox-tooltip"
+                  data-tooltip-content="Think before responding"
+                  data-tooltip-place="top"
+                  style={{ 
+                    backgroundColor: reasonDisabled ? 'var(--secondary)' : (isReasonToggled ? 'var(--accent)' : 'var(--background-secondary)'), 
+                    borderWidth: 1,
+                    borderStyle: 'solid',
+                    borderColor: reasonDisabled ? 'var(--border)' : (isReasonToggled ? 'var(--accent-foreground)' : 'var(--border)'),
+                    color: reasonDisabled ? 'var(--foreground-secondary)' : (isReasonToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')
+                  }}
+                  onMouseEnter={(e) => !reasonDisabled && (e.currentTarget.style.backgroundColor = isReasonToggled ? 'var(--accent)' : 'var(--secondary)')}
+                  onMouseLeave={(e) => !reasonDisabled && (e.currentTarget.style.backgroundColor = isReasonToggled ? 'var(--accent)' : 'var(--background-secondary)')}
+                  onTouchStart={!reasonDisabled && isMobile ? (e) => handleMobileItemTouchStart(e, 'reason-button') : undefined}
+                  onTouchEnd={!reasonDisabled && isMobile ? () => handleMobileItemTouchEnd('reason-button') : undefined}
+                  onTouchMove={!reasonDisabled && isMobile ? handleMobileItemTouchMove : undefined}
+                >
+                  <LuLightbulb style={{...inputIconStyle, color: reasonDisabled ? 'var(--foreground-secondary)' : (isReasonToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')}} />
+                  <span style={{ color: 'var(--foreground)' }} className={`hidden sm:inline ml-2 text-sm`}>Reason</span>
+                </button>
+                <button
+                  id="agentic-button"
+                  type="button"
+                  onClick={handleAgenticResearchToggle}
+                  disabled={agenticResearchDisabled}
+                  className={`p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center active:scale-95 ${agenticResearchDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  aria-label="Agentic Search"
+                  data-tooltip-id="chatbox-tooltip"
+                  data-tooltip-content="Smart Web Search ~ BETA"
+                  data-tooltip-place="top"
+                  style={{ 
+                    backgroundColor: agenticResearchDisabled ? 'var(--secondary)' : (isAgenticResearchToggled ? 'var(--accent)' : 'var(--background-secondary)'), 
+                    borderWidth: 1,
+                    borderStyle: 'solid',
+                    borderColor: agenticResearchDisabled ? 'var(--border)' : (isAgenticResearchToggled ? 'var(--accent-foreground)' : 'var(--border)'),
+                    color: agenticResearchDisabled ? 'var(--foreground-secondary)' : (isAgenticResearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')
+                  }}
+                  onMouseEnter={(e) => !agenticResearchDisabled && (e.currentTarget.style.backgroundColor = isAgenticResearchToggled ? 'var(--accent)' : 'var(--secondary)')}
+                  onMouseLeave={(e) => !agenticResearchDisabled && (e.currentTarget.style.backgroundColor = isAgenticResearchToggled ? 'var(--accent)' : 'var(--background-secondary)')}
+                  onTouchStart={!agenticResearchDisabled && isMobile ? (e) => handleMobileItemTouchStart(e, 'agentic-button') : undefined}
+                  onTouchEnd={!agenticResearchDisabled && isMobile ? () => handleMobileItemTouchEnd('agentic-button') : undefined}
+                  onTouchMove={!agenticResearchDisabled && isMobile ? handleMobileItemTouchMove : undefined}
+                >
+                  <LuSparkles style={{...inputIconStyle, color: agenticResearchDisabled ? 'var(--foreground-secondary)' : (isAgenticResearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')}} />
+                  <span style={{ color: 'var(--foreground)' }} className={`hidden sm:inline ml-2 text-sm`}>Agentic Search</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
+      
+      <Tooltip 
+        anchorSelect="#expand-button" 
+        content={isTextareaExpanded ? "Collapse" : "Expand"} 
+        isOpen={mobileTooltipTargetId === 'expand-button'} 
+        place="top"
+        style={{zIndex: 1002}} 
+      />
+      <Tooltip 
+        anchorSelect="#video-input-button" 
+        content="Start video input" 
+        isOpen={mobileTooltipTargetId === 'video-input-button'} 
+        place="top"
+        style={{zIndex: 1002}} 
+      />
+      <Tooltip 
+        anchorSelect="#send-button" 
+        content="Send Message" 
+        isOpen={mobileTooltipTargetId === 'send-button'} 
+        place="top"
+        style={{zIndex: 1002}} 
+      />
+      <Tooltip 
+        anchorSelect="#new-chat-button" 
+        content="New Chat" 
+        isOpen={mobileTooltipTargetId === 'new-chat-button'} 
+        place="top"
+        style={{zIndex: 1002}} 
+      />
+      <Tooltip 
+        anchorSelect="#attach-file-button" 
+        content="Attach Files" 
+        isOpen={mobileTooltipTargetId === 'attach-file-button'} 
+        place="top"
+        style={{zIndex: 1002}} 
+      />
+      <Tooltip 
+        anchorSelect="#search-button" 
+        content="Always Browse the web" 
+        isOpen={mobileTooltipTargetId === 'search-button'} 
+        place="top"
+        style={{zIndex: 1002}} 
+      />
+      <Tooltip 
+        anchorSelect="#reason-button" 
+        content="Think before responding" 
+        isOpen={mobileTooltipTargetId === 'reason-button'} 
+        place="top"
+        style={{zIndex: 1002}} 
+      />
+      <Tooltip 
+        anchorSelect="#agentic-button" 
+        content="Smart Web Search ~ BETA" 
+        isOpen={mobileTooltipTargetId === 'agentic-button'} 
+        place="top"
+        style={{zIndex: 1002}} 
+      />
     </div>
   );
 };

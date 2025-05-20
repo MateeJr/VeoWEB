@@ -9,14 +9,22 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@google/genai": "^0.15.0",
+    "@google/generative-ai": "^0.24.1",
+    "@types/uuid": "^10.0.0",
     "framer-motion": "^12.11.4",
+    "fs": "^0.0.1-security",
     "lucide-react": "^0.510.0",
+    "marked-react": "^3.0.0",
     "next": "15.3.2",
     "nodemailer": "^6.9.14",
+    "path": "^0.12.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-icons": "^5.5.0",
-    "react-tooltip": "^5.28.1"
+    "react-syntax-highlighter": "^15.6.1",
+    "react-tooltip": "^5.28.1",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -24,6 +32,7 @@
     "@types/nodemailer": "^6.4.15",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/react-syntax-highlighter": "^15.5.13",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

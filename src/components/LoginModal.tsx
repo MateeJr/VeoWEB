@@ -401,7 +401,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
               <div style={styles.contentPadding}>
                 <div style={styles.headerContainer}>
                   <h2 style={styles.title}>
-                    {isLogin ? "Welcome Back" : "Create Account"}
+                    {isLogin ? "Login" : "Register"}
                   </h2>
                   
                   <div style={styles.tabContainer}>
