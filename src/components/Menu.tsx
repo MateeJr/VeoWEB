@@ -53,6 +53,8 @@ const menuItems = [
   { id: 'customization', name: 'Customization', icon: LuWand },
   { id: 'changelog', name: 'Changelog', icon: LuHistory },
   { id: 'about', name: 'About', icon: LuInfo },
+  // Admin item added, visibility will be controlled in the UI
+  { id: 'admin', name: 'Admin', icon: LuShieldAlert },
 ];
 
 // Styles from AccountModal (can be refactored or kept separate)
@@ -268,6 +270,16 @@ interface ThemeOptionProps {
   isSmallScreen: boolean;
 }
 
+// Add after ThemeOptionProps interface
+interface AdminUser {
+  email: string;
+  username?: string;
+  createdAt?: number;
+  deviceFingerprint?: string;
+  allowLogging?: boolean;
+  allowTelemetry?: boolean;
+}
+
 const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab }) => {
   // Use initialTab prop if provided, otherwise default to first menu item
   const [activeMenuItem, setActiveMenuItem] = useState<string>(initialTab || menuItems[0].id);
@@ -303,6 +315,16 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [isLoadingGeoInfo, setIsLoadingGeoInfo] = useState(true);
   const [geoInfoError, setGeoInfoError] = useState('');
+
+  // Add these new state variables for admin panel
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminPasswordError, setAdminPasswordError] = useState('');
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [isLoadingAdminUsers, setIsLoadingAdminUsers] = useState(false);
+  const [adminActionInProgress, setAdminActionInProgress] = useState(false);
+  const [showDeleteAllAccountsConfirm, setShowDeleteAllAccountsConfirm] = useState(false);
+  const [deleteUserConfirm, setDeleteUserConfirm] = useState<string | null>(null);
 
   // Function to save data control settings
   const saveDataControlSettings = async (setting: 'allowLogging' | 'allowTelemetry', value: boolean) => {
@@ -1752,6 +1774,453 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
     );
   };
 
+  // Determine if the current user is an admin
+  const isAdmin = user?.email === 'vallian476@gmail.com';
+  
+  // Function to authenticate admin
+  const authenticateAdmin = () => {
+    if (adminPassword === 'STARK') {
+      setIsAdminAuthenticated(true);
+      setAdminPasswordError('');
+      loadAdminData();
+    } else {
+      setAdminPasswordError('Incorrect password');
+    }
+  };
+  
+  // Function to load admin data
+  const loadAdminData = async () => {
+    if (!isAdmin) return;
+    
+    // Load users
+    setIsLoadingAdminUsers(true);
+    try {
+      // Here we would fetch data from the Redis DB
+      const response = await fetch('/api/admin/users', {
+        headers: {
+          'x-user-email': 'vallian476@gmail.com'
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAdminUsers(data.users || []);
+      } else {
+        console.error('Failed to load admin users');
+      }
+    } catch (error) {
+      console.error('Error loading admin users:', error);
+    } finally {
+      setIsLoadingAdminUsers(false);
+    }
+  };
+  
+  // Function to delete a user
+  const deleteUser = async (email: string) => {
+    if (!isAdmin || !email) return;
+    
+    setAdminActionInProgress(true);
+    try {
+      const response = await fetch('/api/admin/delete-user', {
+        method: 'DELETE',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user-email': 'vallian476@gmail.com'
+        },
+        body: JSON.stringify({ email })
+      });
+      
+      if (response.ok) {
+        // Remove the user from the list
+        setAdminUsers(adminUsers.filter(user => user.email !== email));
+      } else {
+        console.error('Failed to delete user');
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+    } finally {
+      setAdminActionInProgress(false);
+      setDeleteUserConfirm(null);
+    }
+  };
+  
+  // Function to delete all users
+  const deleteAllUsers = async () => {
+    if (!isAdmin) return;
+    
+    setAdminActionInProgress(true);
+    try {
+      const response = await fetch('/api/admin/delete-all-users', {
+        method: 'DELETE',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user-email': 'vallian476@gmail.com'
+        }
+      });
+      
+      if (response.ok) {
+        // Clear the users list
+        setAdminUsers([]);
+      } else {
+        console.error('Failed to delete all users');
+      }
+    } catch (error) {
+      console.error('Error deleting all users:', error);
+    } finally {
+      setAdminActionInProgress(false);
+      setShowDeleteAllAccountsConfirm(false);
+    }
+  };
+
+  // ... existing code ...
+  
+  // Add this function after renderChangelogContent
+  const renderAdminContent = () => {
+    // Only show admin content for authorized user
+    if (!isAdmin) {
+      return (
+        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--foreground-secondary)' }}>
+          <LuShieldAlert size={48} style={{ margin: '0 auto 1rem' }} />
+          <h2 style={{ marginBottom: '1rem', color: 'var(--foreground)' }}>Administrator Access Required</h2>
+          <p>You do not have permission to access this area.</p>
+        </div>
+      );
+    }
+    
+    // Password protection screen
+    if (!isAdminAuthenticated) {
+      return (
+        <div style={{ padding: '2rem', maxWidth: '400px', margin: '0 auto', color: 'var(--foreground)' }}>
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <LuShieldAlert size={48} style={{ margin: '0 auto 1rem', color: 'var(--primary)' }} />
+            <h2 style={{ marginBottom: '0.5rem' }}>Admin Authentication</h2>
+            <p style={{ color: 'var(--foreground-secondary)' }}>Enter your admin password to continue</p>
+          </div>
+          
+          <div style={{ marginBottom: '1.5rem' }}>
+            <input 
+              type="password"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.75rem 1rem',
+                borderRadius: '0.5rem',
+                border: `1px solid ${adminPasswordError ? 'var(--destructive)' : 'var(--border)'}`,
+                backgroundColor: 'var(--background)',
+                color: 'var(--foreground)',
+                fontSize: '1rem',
+              }}
+              placeholder="Enter admin password"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') authenticateAdmin();
+              }}
+            />
+            {adminPasswordError && (
+              <p style={{ color: 'var(--destructive)', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                {adminPasswordError}
+              </p>
+            )}
+          </div>
+          
+          <button
+            onClick={authenticateAdmin}
+            style={{
+              backgroundColor: 'var(--primary)',
+              color: 'white',
+              padding: '0.75rem 1rem',
+              borderRadius: '0.5rem',
+              border: 'none',
+              width: '100%',
+              fontSize: '1rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'background-color 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--primary)';
+            }}
+          >
+            Authenticate
+          </button>
+        </div>
+      );
+    }
+    
+    // Admin panel content
+    return (
+      <div style={{ padding: '1.5rem', color: 'var(--foreground)', height: '100%', overflowY: 'auto' }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1.5rem', color: 'var(--foreground)' }}>
+          Admin Dashboard
+        </h2>
+        
+        {/* Account Management Section */}
+        <div style={{ 
+          backgroundColor: 'var(--background-secondary)',
+          borderRadius: '0.75rem',
+          padding: '1.25rem',
+          border: '1px solid var(--border)',
+        }}>
+          <h3 style={{
+            fontSize: '1.25rem',
+            fontWeight: '600',
+            marginBottom: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}>
+            <LuUser size={20} style={{ color: 'var(--primary)' }} />
+            Account Management
+          </h3>
+          
+          {isLoadingAdminUsers ? (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--foreground-secondary)' }}>
+              Loading accounts...
+            </div>
+          ) : adminUsers.length === 0 ? (
+            <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--foreground-secondary)' }}>
+              No user accounts found
+            </div>
+          ) : (
+            <div style={{ 
+              overflowX: 'auto', 
+              overflowY: 'auto',
+              maxHeight: '320px' // This will show approximately 4 rows before scrolling
+            }}>
+              <table style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                fontSize: '0.875rem',
+              }}>
+                <thead>
+                  <tr>
+                    <th style={{
+                      textAlign: 'left',
+                      padding: '0.75rem 1rem',
+                      borderBottom: '1px solid var(--border)',
+                      color: 'var(--foreground)'
+                    }}>Email</th>
+                    <th style={{
+                      textAlign: 'left',
+                      padding: '0.75rem 1rem',
+                      borderBottom: '1px solid var(--border)',
+                      color: 'var(--foreground)'
+                    }}>Username</th>
+                    <th style={{
+                      textAlign: 'left',
+                      padding: '0.75rem 1rem',
+                      borderBottom: '1px solid var(--border)',
+                      color: 'var(--foreground)'
+                    }}>Created At</th>
+                    <th style={{
+                      textAlign: 'left',
+                      padding: '0.75rem 1rem',
+                      borderBottom: '1px solid var(--border)',
+                      color: 'var(--foreground)'
+                    }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminUsers.map((user) => (
+                    <tr key={user.email}>
+                      <td style={{
+                        padding: '0.75rem 1rem',
+                        borderBottom: '1px solid var(--border)',
+                        color: 'var(--foreground)'
+                      }}>
+                        {user.email}
+                      </td>
+                      <td style={{
+                        padding: '0.75rem 1rem',
+                        borderBottom: '1px solid var(--border)',
+                        color: 'var(--foreground)'
+                      }}>
+                        {user.username || 'N/A'}
+                      </td>
+                      <td style={{
+                        padding: '0.75rem 1rem',
+                        borderBottom: '1px solid var(--border)',
+                        color: 'var(--foreground)'
+                      }}>
+                        {user.createdAt ? formatFullDate(user.createdAt) : 'N/A'}
+                      </td>
+                      <td style={{
+                        padding: '0.75rem 1rem',
+                        borderBottom: '1px solid var(--border)',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {deleteUserConfirm === user.email ? (
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button
+                              onClick={() => deleteUser(user.email)}
+                              disabled={adminActionInProgress}
+                              style={{
+                                backgroundColor: 'var(--destructive)',
+                                color: 'white',
+                                border: 'none',
+                                padding: '0.375rem 0.75rem',
+                                borderRadius: '0.25rem',
+                                fontSize: '0.75rem',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              onClick={() => setDeleteUserConfirm(null)}
+                              disabled={adminActionInProgress}
+                              style={{
+                                backgroundColor: 'var(--secondary)',
+                                color: 'var(--secondary-foreground)',
+                                border: 'none',
+                                padding: '0.375rem 0.75rem',
+                                borderRadius: '0.25rem',
+                                fontSize: '0.75rem',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setDeleteUserConfirm(user.email)}
+                            style={{
+                              backgroundColor: 'var(--destructive)',
+                              color: 'white',
+                              border: 'none',
+                              padding: '0.375rem 0.75rem',
+                              borderRadius: '0.25rem',
+                              fontSize: '0.75rem',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          
+          {/* Delete All Accounts Button */}
+          <div style={{ 
+            marginTop: '1.5rem', 
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '0.75rem'
+          }}>
+            <button
+              onClick={loadAdminData}
+              style={{
+                backgroundColor: 'var(--primary)',
+                color: 'white',
+                border: 'none',
+                padding: '0.5rem 1rem',
+                borderRadius: '0.5rem',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--primary)';
+              }}
+            >
+              <LuActivity size={16} />
+              REFRESH
+            </button>
+            {showDeleteAllAccountsConfirm ? (
+              <div style={{ 
+                border: '1px solid var(--destructive)',
+                padding: '0.75rem 1rem',
+                borderRadius: '0.5rem',
+                backgroundColor: 'var(--destructive)',
+                opacity: '0.9',
+                color: 'white',
+                display: 'flex', 
+                flexDirection: 'column',
+                gap: '1rem'
+              }}>
+                <div style={{ fontWeight: '600' }}>
+                  Are you sure you want to delete ALL accounts? This cannot be undone!
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => deleteAllUsers()}
+                    disabled={adminActionInProgress}
+                    style={{
+                      backgroundColor: 'white',
+                      color: 'var(--destructive)',
+                      border: 'none',
+                      padding: '0.5rem 1rem',
+                      borderRadius: '0.25rem',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Yes, Delete All
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteAllAccountsConfirm(false)}
+                    disabled={adminActionInProgress}
+                    style={{
+                      backgroundColor: 'transparent',
+                      color: 'white',
+                      border: '1px solid white',
+                      padding: '0.5rem 1rem',
+                      borderRadius: '0.25rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowDeleteAllAccountsConfirm(true)}
+                style={{
+                  backgroundColor: 'var(--destructive)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '0.5rem',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--destructive-hover)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--destructive)';
+                }}
+              >
+                <LuShieldAlert size={16} />
+                DELETE ALL ACCOUNTS
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ... existing code ...
+  
+  // Modify renderSubpageContent function to include admin content
   const renderSubpageContent = (selectedItem: { id: string; name: string; icon: React.ElementType } | undefined) => {
     switch (selectedItem?.id) {
       case 'account':
@@ -1766,10 +2235,23 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
         return renderChangelogContent();
       case 'about':
         return renderAboutContent();
+      case 'admin':
+        return renderAdminContent();
       default:
         return null;
     }
   };
+  
+  // ... existing code ...
+  
+  // Filter the menu items to only show admin panel for the right user
+  const filteredMenuItems = menuItems.filter(item => {
+    // Only show admin item to specific email
+    if (item.id === 'admin') {
+      return isAdmin;
+    }
+    return true;
+  });
 
   const renderMobileSubpage = () => {
     const selectedItem = menuItems.find(item => item.id === activeMenuItem);
@@ -1822,7 +2304,7 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
         </div>
         
         <div style={{ overflowY: 'auto' }}>
-          {menuItems.map((item) => {
+          {filteredMenuItems.map((item) => {
             const IconComponent = item.icon;
             return (
               <button
@@ -1940,7 +2422,7 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
           <>
             <div style={sidebarStyle}>
               <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '20px', paddingLeft: '0px', color: 'var(--foreground)' }}>Settings</h2>
-              {menuItems.map((item) => {
+              {filteredMenuItems.map((item) => {
                 const IconComponent = item.icon;
                 const isActive = activeMenuItem === item.id;
                 return (

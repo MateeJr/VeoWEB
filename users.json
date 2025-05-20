@@ -16,5 +16,14 @@
     "createdAt": 1747680576509,
     "allowLogging": false,
     "allowTelemetry": true
+  },
+  {
+    "email": "matila@gmail.com",
+    "password": "Ubitopia00",
+    "username": "Vallian",
+    "deviceFingerprint": "-6edec74a",
+    "createdAt": 1747735986268,
+    "allowLogging": false,
+    "allowTelemetry": true
   }
 ]

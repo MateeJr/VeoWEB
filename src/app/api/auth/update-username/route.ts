@@ -1,27 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
 import { User } from '@/utils/auth';
-
-const usersFilePath = path.join(process.cwd(), 'users.json');
-
-async function getUsers(): Promise<User[]> {
-  try {
-    const data = await fs.readFile(usersFilePath, 'utf-8');
-    return JSON.parse(data) as User[];
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw new Error('Could not read user data');
-  }
-}
-
-async function saveUsers(users: User[]): Promise<void> {
-  try {
-    await fs.writeFile(usersFilePath, JSON.stringify(users, null, 2), 'utf-8');
-  } catch (error) {
-    throw new Error('Could not save user data');
-  }
-}
+import { getUserByEmail, updateUser } from '@/lib/redis';
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,15 +13,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, message: 'Username must be between 3 and 16 characters'}, {status: 400});
     }
 
-    const users = await getUsers();
-    const userIndex = users.findIndex(u => u.email === email);
+    const user = await getUserByEmail(email);
 
-    if (userIndex === -1) {
+    if (!user) {
       return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 });
     }
 
-    users[userIndex].username = username;
-    await saveUsers(users);
+    await updateUser(email, { username });
 
     return NextResponse.json({ success: true, message: 'Username updated successfully' });
 

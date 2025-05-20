@@ -30,6 +30,23 @@ const ConversationHistory: React.FC<ConversationHistoryProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile devices
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    // Initial check
+    checkScreenSize();
+    
+    // Add event listener for window resize
+    window.addEventListener('resize', checkScreenSize);
+    
+    // Cleanup event listener
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   // Load conversation list
   useEffect(() => {
@@ -156,7 +173,7 @@ const ConversationHistory: React.FC<ConversationHistoryProps> = ({
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={(e) => handleDelete(conversation.id, e)}
-                  className="p-1.5 rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 text-neutral-600 hover:text-red-600 dark:text-neutral-400 dark:hover:text-red-400 transition-all"
+                  className={`p-1.5 rounded-full ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} hover:bg-red-100 dark:hover:bg-red-900/20 text-neutral-600 hover:text-red-600 dark:text-neutral-400 dark:hover:text-red-400 transition-all`}
                   aria-label="Delete conversation"
                 >
                   <Trash className="w-4 h-4" />

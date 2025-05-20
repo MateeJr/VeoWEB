@@ -1,10 +1,5 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-import { User } from '@/utils/auth';
-
-// This would be replaced with a proper database in a production environment
-const USERS_FILE_PATH = path.join(process.cwd(), 'users.json');
+import { getUserByEmail, updateUser } from '@/lib/redis';
 
 // Handler for POST requests to update user settings
 export async function POST(request: Request) {
@@ -15,26 +10,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Email is required' }, { status: 400 });
     }
 
-    // Read the users file
-    const usersData = fs.readFileSync(USERS_FILE_PATH, 'utf8');
-    const users: User[] = JSON.parse(usersData);
-
-    // Find the user by email
-    const userIndex = users.findIndex(user => user.email === email);
-    if (userIndex === -1) {
+    // Check if user exists
+    const user = await getUserByEmail(email);
+    if (!user) {
       return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 });
     }
 
-    // Update the user settings
+    // Prepare updates
+    const updates: Record<string, any> = {};
     if (allowLogging !== undefined) {
-      users[userIndex].allowLogging = allowLogging;
+      updates.allowLogging = allowLogging;
     }
     if (allowTelemetry !== undefined) {
-      users[userIndex].allowTelemetry = allowTelemetry;
+      updates.allowTelemetry = allowTelemetry;
     }
 
-    // Save the updated users data
-    fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(users, null, 2), 'utf8');
+    // Update user in Redis
+    await updateUser(email, updates);
 
     return NextResponse.json({ success: true, message: 'Settings updated successfully' });
   } catch (error) {

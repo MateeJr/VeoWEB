@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteConversationFile } from '@/utils/ServerFileUtils';
+import { deleteConversationFromRedis } from '@/lib/redis';
 
 export async function DELETE(req: NextRequest) {
   try {
@@ -11,7 +11,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'User ID and conversation ID are required' }, { status: 400 });
     }
     
-    const success = deleteConversationFile(userId, conversationId);
+    const success = await deleteConversationFromRedis(userId, conversationId);
     
     if (!success) {
       return NextResponse.json({ error: 'Conversation not found or could not be deleted' }, { status: 404 });

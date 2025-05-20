@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteAllConversationsForUser } from '@/utils/ServerFileUtils';
+import { deleteAllConversationsForUser } from '@/lib/redis';
 
 export async function DELETE(req: NextRequest) {
   try {
@@ -11,7 +11,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
     
-    const success = deleteAllConversationsForUser(userId);
+    const success = await deleteAllConversationsForUser(userId);
     
     if (!success) {
       return NextResponse.json({ error: 'Failed to delete all conversations' }, { status: 500 });

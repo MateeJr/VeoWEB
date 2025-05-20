@@ -1,32 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-import { User } from '@/utils/auth'; // Assuming User interface is exported from auth.ts
-
-const usersFilePath = path.join(process.cwd(), 'users.json');
-
-async function getUsers(): Promise<User[]> {
-  try {
-    const data = await fs.readFile(usersFilePath, 'utf-8');
-    return JSON.parse(data) as User[];
-  } catch (error) {
-    // If file doesn't exist or other error, return empty array or handle appropriately
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return [];
-    }
-    console.error("Error reading users file:", error);
-    throw new Error('Could not read user data');
-  }
-}
-
-async function saveUsers(users: User[]): Promise<void> {
-  try {
-    await fs.writeFile(usersFilePath, JSON.stringify(users, null, 2), 'utf-8');
-  } catch (error) {
-    console.error("Error writing users file:", error);
-    throw new Error('Could not save user data');
-  }
-}
+import { User } from '@/utils/auth';
+import { saveUser, getUserByEmail } from '@/lib/redis';
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,8 +18,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, message: 'Username must be at least 3 characters' }, { status: 400 });
     }
 
-    const users = await getUsers();
-    const existingUser = users.find(user => user.email === email);
+    // Check if user already exists in Redis
+    const existingUser = await getUserByEmail(email);
 
     if (existingUser) {
       return NextResponse.json({ success: false, message: 'User already exists with this email' }, { status: 409 });
@@ -63,8 +37,8 @@ export async function POST(req: NextRequest) {
       allowTelemetry: true, // Default: Telemetry ON
     };
 
-    users.push(newUser);
-    await saveUsers(users);
+    // Save user to Redis
+    await saveUser(newUser);
 
     return NextResponse.json({ 
       success: true, 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadConversationFromFile } from '@/utils/ServerFileUtils';
+import { loadConversationFromRedis } from '@/lib/redis';
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Conversation ID is required' }, { status: 400 });
     }
     
-    const conversation = loadConversationFromFile(userId, conversationId);
+    const conversation = await loadConversationFromRedis(userId, conversationId);
     
     if (!conversation) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });

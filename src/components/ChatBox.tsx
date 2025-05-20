@@ -225,6 +225,11 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
 
   const handleTextareaKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
+      // On mobile, don't submit on Enter; allow new line instead
+      if (isMobile) {
+        return; // Just create a new line (default textarea behavior)
+      }
+      // On desktop, submit the form
       event.preventDefault();
       handleSendMessage();
     }

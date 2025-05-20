@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listUserConversations } from '@/utils/ServerFileUtils';
+import { listUserConversationsFromRedis } from '@/lib/redis';
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
     
-    const conversations = listUserConversations(userId);
+    const conversations = await listUserConversationsFromRedis(userId);
     
     // Return only essential data to keep response size manageable
     const simplifiedConversations = conversations.map(conv => ({

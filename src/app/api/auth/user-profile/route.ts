@@ -1,20 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
 import { User } from '@/utils/auth';
-
-const usersFilePath = path.join(process.cwd(), 'users.json');
-
-async function getUsers(): Promise<User[]> {
-  try {
-    const data = await fs.readFile(usersFilePath, 'utf-8');
-    return JSON.parse(data) as User[];
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    console.error("Error reading users file:", error);
-    throw new Error('Could not read user data');
-  }
-}
+import { getUserByEmail } from '@/lib/redis';
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,15 +10,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Email is required' }, { status: 400 });
     }
 
-    const users = await getUsers();
-    const user = users.find(u => u.email === email);
+    const user = await getUserByEmail(email);
 
     if (!user) {
       return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 });
     }
 
     // Return user data, excluding password
-    const { password, ...userProfile } = user;
+    const userData = user as unknown as User;
+    const { password, ...userProfile } = userData;
     return NextResponse.json({ success: true, user: userProfile });
 
   } catch (error) {

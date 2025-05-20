@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { saveConversationToFile, ensureDirectoriesExist } from '@/utils/ServerFileUtils';
 import { ConversationHistory } from '@/utils/HistoryManager';
+import { saveConversationToRedis } from '@/lib/redis';
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,9 +22,12 @@ export async function POST(req: NextRequest) {
     }
     conversation.updatedAt = new Date().toISOString();
     
-    // Ensure directories exist and save
-    ensureDirectoriesExist(userId);
-    saveConversationToFile(userId, conversation as ConversationHistory);
+    // Save to Redis
+    const success = await saveConversationToRedis(userId, conversation as ConversationHistory);
+    
+    if (!success) {
+      return NextResponse.json({ error: 'Failed to save conversation to Redis' }, { status: 500 });
+    }
     
     return NextResponse.json({ success: true });
   } catch (error) {

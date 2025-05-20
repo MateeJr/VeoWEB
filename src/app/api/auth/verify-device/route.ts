@@ -1,31 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
 import { User } from '@/utils/auth';
-
-const usersFilePath = path.join(process.cwd(), 'users.json');
-
-async function getUsers(): Promise<User[]> {
-  try {
-    const data = await fs.readFile(usersFilePath, 'utf-8');
-    return JSON.parse(data) as User[];
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    console.error("Error reading users file:", error);
-    throw new Error('Could not read user data');
-  }
-}
-
-// Note: saveUsers function might not be needed if we don't update fingerprint here,
-// or only update it during login for simplicity in this example.
-async function saveUsers(users: User[]): Promise<void> {
-  try {
-    await fs.writeFile(usersFilePath, JSON.stringify(users, null, 2), 'utf-8');
-  } catch (error) {
-    console.error("Error writing users file:", error);
-    throw new Error('Could not save user data');
-  }
-}
+import { getUserByEmail } from '@/lib/redis';
 
 export async function POST(req: NextRequest) {
   try {
@@ -52,8 +27,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Email and fingerprint are required' }, { status: 400 });
     }
 
-    const users = await getUsers();
-    const user = users.find(u => u.email === email);
+    const user = await getUserByEmail(email);
 
     if (!user) {
       // Important: Do not reveal if the email exists or not for security reasons
