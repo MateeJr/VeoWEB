@@ -41,11 +41,5 @@ export async function POST(req: NextRequest) {
     }
     
     return NextResponse.json({ response });
-  } catch (error) {
-    console.error('Error in Gemini API route:', error);
-    return NextResponse.json(
-      { error: 'Failed to process with Gemini' },
-      { status: 500 }
-    );
-  }
+    } catch (error) {    console.error('Error in Gemini API route:', error);    return NextResponse.json(      { error: 'Failed to process your request' },      { status: 500 }    );  }
 } 
