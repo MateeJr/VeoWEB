@@ -1,0 +1,20 @@
+{
+  "id": "conv-1747734397241-6gwao8a",
+  "title": "Tolong tutorial step by step upload code gue ke GI...",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Tolong tutorial step by step upload code gue ke GITHUB ku repo sendiri dari VS CODE",
+      "timestamp": "2025-05-20T09:47:02.240Z"
+    },
+    {
+      "role": "model",
+      "content": "Untuk upload kode kamu dari VS Code ke repo GitHub sendiri, ini langkah-langkahnya:\n\n`Langkah-langkah upload kode dari VS Code ke GitHub repo sendiri.`\n\n1.  **Buka proyek kamu di VS Code.** Pastikan folder proyek kamu sudah terbuka.\n2.  **Initialize Git:** Kalau proyek kamu belum di-init Git, buka Terminal di VS Code (`Ctrl+'` atau `Cmd+'`), lalu ketik `git init` dan tekan Enter.\n3.  **Stage file:** Klik ikon Source Control (biasanya di sidebar kiri, gambar garpu tiga cabang). Kamu akan lihat file-file yang belum ditrack. Arahkan kursor ke \"Changes\", lalu klik tanda `+` di sebelah kanan \"Changes\" atau di sebelah setiap file untuk menambahkan (stage) file-file yang mau di-commit.\n4.  **Commit file:** Setelah file di-stage, tulis pesan commit singkat di kotak di bagian atas panel Source Control (contoh: \"Initial commit\"). Klik tombol centang (Commit).\n5.  **Buat Repo di GitHub:** Pergi ke website GitHub, login, lalu buat repository baru. Beri nama repo kamu (misalnya, sesuai nama proyek). Jangan centang \"Initialize this repository with a README\" atau tambahkan `.gitignore`/license dulu, biar lebih gampang. Klik \"Create repository\".\n6.  **Hubungkan repo lokal dengan repo GitHub:** Di halaman repo GitHub yang baru kamu buat, akan ada instruksi untuk \"push an existing repository from the command line\". Copy 2 baris perintah yang diberikan, biasanya seperti ini:\n    *   `git remote add origin <URL_repo_kamu>`\n    *   `git branch -M main` (atau `master`, tergantung setting default GitHub/Git kamu)\n7.  **Jalankan perintah di VS Code Terminal:** Kembali ke VS Code Terminal, paste 2 baris perintah yang tadi kamu copy, lalu tekan Enter setelah setiap baris.\n8.  **Push kode:** Setelah remote origin ditambahkan, push kode lokal kamu ke GitHub dengan perintah: `git push -u origin main` (ganti `main` kalau branch utama kamu namanya `master`). Tekan Enter.\n\nVS Code mungkin akan meminta kamu login ke GitHub. Setelah berhasil, kode kamu akan ter-upload ke repo GitHub kamu.",
+      "timestamp": "2025-05-20T09:47:02.240Z",
+      "isReasoning": true,
+      "thinkDuration": 2172
+    }
+  ],
+  "createdAt": "2025-05-20T09:47:02.240Z",
+  "updatedAt": "2025-05-20T09:47:08.881Z"
+}

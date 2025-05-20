@@ -155,4 +155,43 @@ export const deleteConversationFile = (userId: string, conversationId: string): 
   
   console.log(`File not found, cannot delete: ${filePath}`);
   return false;
+};
+
+// Delete all conversations for a user
+export const deleteAllConversationsForUser = (userId: string): boolean => {
+  if (!isServer) {
+    throw new Error('ServerFileUtils can only be used on the server side');
+  }
+  
+  if (!userId) {
+    throw new Error('User ID is required - cannot delete conversations without a user ID');
+  }
+  
+  const userDir = getUserHistoryDir(userId);
+  
+  if (!fs.existsSync(userDir)) {
+    console.log(`User directory not found: ${userDir}`);
+    return false;
+  }
+  
+  let success = true;
+  try {
+    // Read all files in the user directory
+    const files = fs.readdirSync(userDir);
+    
+    // Delete each conversation file
+    for (const file of files) {
+      if (file.endsWith('.json')) {
+        const filePath = path.join(userDir, file);
+        fs.unlinkSync(filePath);
+        console.log(`Deleted conversation: ${filePath}`);
+      }
+    }
+    
+    console.log(`Successfully deleted all conversations for user: ${userId}`);
+    return true;
+  } catch (error) {
+    console.error(`Error deleting all conversations for user ${userId}:`, error);
+    return false;
+  }
 }; 

@@ -2,10 +2,12 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
-import { Copy, Edit, RefreshCw, Check, WrapText, ArrowLeftRight, Save } from 'lucide-react';
+import { Copy, Edit, RefreshCw, Check, WrapText, ArrowLeftRight, Save, Trash } from 'lucide-react';
 import Marked from 'marked-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight, oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import 'katex/dist/katex.min.css'; // Import KaTeX CSS
+import Latex from 'react-latex-next'; // Import LaTeX component
 import { 
   saveConversation, 
   convertChatMessagesToHistory, 
@@ -21,8 +23,13 @@ interface ChatMessage {
   isUser: boolean;
   timestamp: Date; 
   isThinking?: boolean;
+  isReasoning?: boolean; // Add flag to indicate if reason mode is on
+  isSearching?: boolean; // Add flag to indicate if search mode is on
   type?: 'text' | 'image' | 'file';
   fileInfo?: { name: string; type: string; size: number };
+  images?: { data: string; type: string; name: string }[]; // Add images property
+  thinkStartTime?: number; // Add timestamp for when thinking started
+  thinkDuration?: number; // Add duration of thinking in milliseconds
 }
 
 interface ChatAreaProps {
@@ -30,16 +37,55 @@ interface ChatAreaProps {
   isVisible: boolean; // Control visibility based on if any messages exist
   onEditMessage?: (messageId: string, text: string) => void;
   onRegenerateMessage?: () => void;
+  onDeleteMessage?: (messageId: string) => void;
   userId: string; // Required user ID for saving conversation history
   conversationId?: string; // Optional conversation ID if continuing a conversation
   isIncognitoMode?: boolean; // Whether incognito mode is enabled
 }
+
+// Add preprocessLaTeX function above the ChatArea component
+const preprocessLaTeX = (content: string) => {
+  // First, handle escaped delimiters to prevent double processing
+  let processedContent = content
+    .replace(/\\\[/g, '___BLOCK_OPEN___')
+    .replace(/\\\]/g, '___BLOCK_CLOSE___')
+    .replace(/\\\(/g, '___INLINE_OPEN___')
+    .replace(/\\\)/g, '___INLINE_CLOSE___');
+
+  // Process block equations
+  processedContent = processedContent.replace(
+    /___BLOCK_OPEN___([\s\S]*?)___BLOCK_CLOSE___/g,
+    (_, equation) => `$$${equation.trim()}$$`
+  );
+
+  // Process inline equations
+  processedContent = processedContent.replace(
+    /___INLINE_OPEN___([\s\S]*?)___INLINE_CLOSE___/g,
+    (_, equation) => `$${equation.trim()}$`
+  );
+
+  // Handle common LaTeX expressions not wrapped in delimiters
+  processedContent = processedContent.replace(
+    /(\b[A-Z](?:_\{[^{}]+\}|\^[^{}]+|_[a-zA-Z\d]|\^[a-zA-Z\d])+)/g,
+    (match) => `$${match}$`
+  );
+
+  // Handle any remaining escaped delimiters that weren't part of a complete pair
+  processedContent = processedContent
+    .replace(/___BLOCK_OPEN___/g, '\\[')
+    .replace(/___BLOCK_CLOSE___/g, '\\]')
+    .replace(/___INLINE_OPEN___/g, '\\(')
+    .replace(/___INLINE_CLOSE___/g, '\\)');
+
+  return processedContent;
+};
 
 const ChatArea: React.FC<ChatAreaProps> = ({ 
   messages, 
   isVisible,
   onEditMessage,
   onRegenerateMessage,
+  onDeleteMessage,
   userId, // Required, no default
   conversationId,
   isIncognitoMode = false
@@ -51,6 +97,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const [currentConversationId, setCurrentConversationId] = useState<string>(conversationId || generateConversationId());
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean | null>(null);
+  const [thinkingMessages, setThinkingMessages] = useState<{[id: string]: number}>({});
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -67,6 +114,64 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       setCurrentConversationId(conversationId);
     }
   }, [conversationId]);
+
+  // Track thinking time for messages
+  useEffect(() => {
+    const currentTime = Date.now();
+    
+    // Check for new thinking messages
+    messages.forEach(message => {
+      if (message.isThinking && !thinkingMessages[message.id]) {
+        // New thinking message
+        setThinkingMessages(prev => ({
+          ...prev,
+          [message.id]: currentTime
+        }));
+      }
+    });
+    
+    // Calculate thinking duration for messages that stopped thinking
+    const updatedThinking = {...thinkingMessages};
+    let hasChanges = false;
+    
+    Object.keys(thinkingMessages).forEach(id => {
+      const message = messages.find(m => m.id === id);
+      if (message && !message.isThinking && !message.thinkDuration) {
+        // Message stopped thinking, calculate duration
+        const thinkStartTime = thinkingMessages[id];
+        const thinkDuration = currentTime - thinkStartTime;
+        
+        // Update the message with the thinking duration
+        message.thinkStartTime = thinkStartTime;
+        message.thinkDuration = thinkDuration > 0 ? thinkDuration : 1000; // Ensure we have at least 1 second
+        
+        console.log(`Thinking finished for message ${id}. Duration: ${thinkDuration}ms`);
+        
+        // Remove from tracking
+        delete updatedThinking[id];
+        hasChanges = true;
+      }
+    });
+    
+    if (hasChanges) {
+      setThinkingMessages(updatedThinking);
+    }
+  }, [messages, thinkingMessages]);
+
+  // Format thinking duration
+  const formatThinkTime = (ms: number): string => {
+    if (!ms || ms <= 0) return 'Thought for < 1 sec';
+    
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    
+    if (minutes > 0) {
+      return `Thought for ${minutes} min${minutes > 1 ? 's' : ''} ${remainingSeconds} sec${remainingSeconds !== 1 ? 's' : ''}`;
+    } else {
+      return `Thought for ${seconds} sec${seconds !== 1 ? 's' : ''}`;
+    }
+  };
 
   // Show centered success notification
   const showCenterSuccess = (message: string) => {
@@ -168,7 +273,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     }
   }, [messages, currentConversationId, userId, isIncognitoMode]);
 
-  // This is the markdown renderer component
+  // Modify the MarkdownRenderer component within ChatArea to handle LaTeX
   const MarkdownRenderer = useCallback(({ content }: { content: string }) => {
     interface CodeBlockProps {
       language: string | undefined;
@@ -300,12 +405,38 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     const renderer = {
       // Text elements
       text: (text: string) => {
-        return <React.Fragment key={keyGen.next()}>{text}</React.Fragment>;
+        if (!text.includes('$')) return text;
+        return (
+          <Latex
+            delimiters={[
+              { left: '$$', right: '$$', display: true },
+              { left: '$', right: '$', display: false }
+            ]}
+            key={keyGen.next()}
+          >
+            {text}
+          </Latex>
+        );
       },
       
-      paragraph: (children: React.ReactNode) => (
-        <p className="my-4 leading-relaxed" key={keyGen.next()}>{children}</p>
-      ),
+      paragraph: (children: React.ReactNode) => {
+        if (typeof children === 'string' && children.includes('$')) {
+          return (
+            <p className="my-4 leading-relaxed" key={keyGen.next()}>
+              <Latex
+                delimiters={[
+                  { left: '$$', right: '$$', display: true },
+                  { left: '$', right: '$', display: false }
+                ]}
+                key={keyGen.next()}
+              >
+                {children}
+              </Latex>
+            </p>
+          );
+        }
+        return <p className="my-4 leading-relaxed" key={keyGen.next()}>{children}</p>;
+      },
       
       // Code blocks with syntax highlighting
       code: (children: string, language?: string) => (
@@ -409,7 +540,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     return (
       <div className="markdown-content">
         <Marked renderer={renderer}>
-          {content}
+          {preprocessLaTeX(content)}
         </Marked>
       </div>
     );
@@ -484,6 +615,28 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         100% {
           transform: scale(0.6);
           opacity: 0.3;
+        }
+      }
+
+      .shimmer-text {
+        position: relative;
+        display: inline-block;
+        color: var(--foreground);
+        font-weight: bold;
+        background: linear-gradient(90deg, var(--foreground), var(--foreground-secondary), var(--foreground));
+        background-size: 200% 100%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: shimmer 2s infinite linear;
+      }
+      
+      @keyframes shimmer {
+        0% {
+          background-position: 200% 0;
+        }
+        100% {
+          background-position: -200% 0;
         }
       }
 
@@ -563,6 +716,25 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     };
   }, [resolvedTheme]); // Re-create when theme changes
 
+  // Add MessageImages component for rendering attached images
+  const MessageImages = ({ images }: { images?: { data: string; type: string; name: string }[] }) => {
+    if (!images || images.length === 0) return null;
+    
+    return (
+      <div className="flex flex-wrap gap-2 mb-4">
+        {images.map((image, idx) => (
+          <div key={idx} className="relative">
+            <img 
+              src={image.data} 
+              alt={`Image ${idx + 1}`} 
+              className="max-w-[200px] max-h-[200px] rounded-md object-contain border border-card-border"
+            />
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   if (!isVisible || messages.length === 0) {
     return null;
   }
@@ -579,34 +751,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             className={`message-container ${message.isUser ? 'user-message' : 'ai-message'}`}
           >
             {message.isUser ? (
-              <div className="flex items-center w-full justify-end relative group">
-                {/* User Message Actions - Positioned right before the message */}
-                {!message.isThinking && (
-                  <div className="user-actions-container hidden group-hover:flex flex-row mr-2 items-center gap-2">
-                    <button
-                      className="message-action-button"
-                      onClick={() => handleCopyMessage(message.text, message.id)}
-                      aria-label="Copy message"
-                    >
-                      {copiedMessageId === message.id ? (
-                        <Check className="w-4 h-4" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </button>
-                    
-                    {onEditMessage && (
-                      <button
-                        className="message-action-button"
-                        onClick={() => onEditMessage(message.id, message.text)}
-                        aria-label="Edit message"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                )}
-                
+              <div className="flex flex-col items-end w-full relative group">
                 <div
                   className="max-w-[80%] md:max-w-[70%] p-3 rounded-2xl rounded-tr-none text-white"
                   style={{
@@ -621,31 +766,89 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                       <div className="thinking-dot dot-3" />
                     </div>
                   ) : (
-                    <div className="whitespace-pre-wrap break-words">{message.text}</div>
+                    <>
+                      {/* Display images if present */}
+                      {message.images && message.images.length > 0 && (
+                        <MessageImages images={message.images} />
+                      )}
+                      <div className="whitespace-pre-wrap break-words">{message.text}</div>
+                    </>
                   )}
                 </div>
+                {/* User Message Actions - Now below the message */}
+                {!message.isThinking && (
+                  <div className="user-actions-container flex flex-row mt-2 items-center gap-2">
+                    <button
+                      className="message-action-button"
+                      onClick={() => handleCopyMessage(message.text, message.id)}
+                      aria-label="Copy message"
+                    >
+                      {copiedMessageId === message.id ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </button>
+                    {onEditMessage && (
+                      <button
+                        className="message-action-button"
+                        onClick={() => onEditMessage(message.id, message.text)}
+                        aria-label="Edit message"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                    )}
+                    {onDeleteMessage && (
+                      <button
+                        className="message-action-button"
+                        onClick={() => onDeleteMessage(message.id)}
+                        aria-label="Delete message"
+                      >
+                        <Trash className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="flex items-center w-full justify-start relative group">
+              <div className="flex flex-col items-start w-full relative group">
                 <div
                   className="max-w-[80%] md:max-w-[70%] p-3 rounded-2xl bg-card text-card-foreground rounded-tl-none"
                 >
                   {message.isThinking ? (
-                    <div className="thinking-dots">
-                      <div className="thinking-dot dot-1" />
-                      <div className="thinking-dot dot-2" />
-                      <div className="thinking-dot dot-3" />
+                    <div className="flex flex-col items-center justify-center py-2">
+                      {message.isSearching && message.isReasoning ? (
+                        <span className="shimmer-text text-lg font-medium">Searching and Thinking...</span>
+                      ) : message.isSearching ? (
+                        <span className="shimmer-text text-lg font-medium">Searching...</span>
+                      ) : message.isReasoning ? (
+                        <span className="shimmer-text text-lg font-medium">Thinking...</span>
+                      ) : (
+                        <div className="thinking-dots">
+                          <div className="thinking-dot dot-1" />
+                          <div className="thinking-dot dot-2" />
+                          <div className="thinking-dot dot-3" />
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="whitespace-pre-wrap break-words">
+                      {message.thinkDuration && message.isReasoning && (
+                        <div className="text-xs text-foreground-secondary mb-2 italic opacity-75">
+                          {formatThinkTime(message.thinkDuration)}
+                        </div>
+                      )}
+                      {/* Display images if present */}
+                      {message.images && message.images.length > 0 && (
+                        <MessageImages images={message.images} />
+                      )}
                       <MarkdownRenderer content={message.text} />
                     </div>
                   )}
                 </div>
-                
-                {/* AI Message Actions - Positioned right after the message */}
+                {/* AI Message Actions - Now below the message */}
                 {!message.isThinking && (
-                  <div className="hidden group-hover:flex flex-row ml-2 items-center gap-2">
+                  <div className="flex flex-row mt-2 items-center gap-2">
                     <button
                       className="message-action-button"
                       onClick={() => handleCopyMessage(message.text, message.id)}

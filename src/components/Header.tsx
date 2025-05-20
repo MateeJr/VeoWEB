@@ -13,6 +13,9 @@ import { useTheme } from '../contexts/ThemeContext';
 import { usePathname } from 'next/navigation';
 import { loadConversation } from '../utils/HistoryManager';
 
+// Define header height as a constant
+const HEADER_HEIGHT = '72px';
+
 const Header = () => {
   const [isSmallScreen, setIsSmallScreen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -51,15 +54,15 @@ const Header = () => {
           } catch (error) {
             console.error('Failed to load conversation for header:', error);
           }
+        } 
+        // Handle main page (new chat)
+        else if (pathname === '/') {
+          setConversationTitle('New Conversation');
+          return;
         }
-      } 
-      // Handle main page (new chat)
-      else if (pathname === '/') {
-        setConversationTitle('New Conversation');
-        return;
+        // If not a chat page or failed to load, clear the title
+        setConversationTitle(null);
       }
-      // If not a chat page or failed to load, clear the title
-      setConversationTitle(null);
     };
 
     fetchConversationTitle();
@@ -296,6 +299,12 @@ const Header = () => {
     }
   };
 
+  // Add handler for logo and text clicks, same as New Chat button in ChatBox.tsx
+  const handleNewChat = () => {
+    // Refresh the page by redirecting to the homepage
+    window.location.href = '/';
+  };
+
   return (
     <>
       <header
@@ -304,7 +313,7 @@ const Header = () => {
           top: 0,
           left: 0,
           width: '100%',
-          height: '72px',
+          height: HEADER_HEIGHT,
           background: 'var(--background)',
           zIndex: 1000,
           display: 'flex',
@@ -324,8 +333,10 @@ const Header = () => {
                 width: '50px', 
                 height: '50px', 
                 marginRight: isSmallScreen ? '0px' : '10px',
-                filter: resolvedTheme === 'dark' ? 'invert(1) brightness(1)' : 'none'
+                filter: resolvedTheme === 'dark' ? 'invert(1) brightness(1)' : 'none',
+                cursor: 'pointer' // Add cursor pointer to indicate it's clickable
               }} 
+              onClick={handleNewChat} // Add click handler to logo
             />
           )}
           {!isSmallScreen && (
@@ -349,7 +360,7 @@ const Header = () => {
               onMouseLeave={(e) => { // Reset if mouse leaves while pressed
                 e.currentTarget.style.transform = 'scale(1)';
               }}
-              // onClick={() => console.log("VEO clicked")} // Example onClick
+              onClick={handleNewChat} // Add click handler to VEO text
             >
               VEO
             </button>
@@ -581,6 +592,7 @@ const Header = () => {
         onClose={() => setShowHistoryPanel(false)}
         isSmallScreen={isSmallScreen}
         onOpenLoginModal={() => setShowLoginModal(true)}
+        headerHeight={HEADER_HEIGHT} // Pass the header height to HistoryPanel
       />
       
       {/* Mobile tooltips for desktop header buttons */}

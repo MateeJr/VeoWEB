@@ -1,16 +1,22 @@
 "use client";
 
-import React, { useState, useEffect, useRef, CSSProperties } from 'react';
+import React, { useState, useEffect, useRef, CSSProperties as ReactCSSProperties } from 'react';
 import { LuPaperclip, LuGlobe, LuLightbulb, LuSquarePen, LuSparkles, LuMaximize2, LuMinimize2, LuVideo, LuMic, LuSend, LuSearch, LuTrash2, LuCopy, LuCheck, LuThumbsUp, LuThumbsDown, LuRefreshCw } from 'react-icons/lu';
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../utils/auth';
 import { useIncognito } from '../contexts/IncognitoContext';
 import { useTheme } from '../contexts/ThemeContext';
 import ChatArea from './ChatArea';
 import { v4 as uuidv4 } from 'uuid';
-import { processWithGemini, processWithHistory } from '../utils/GeminiHandler';
+import { 
+  processWithGemini, 
+  processWithHistory, 
+  processWithGeminiStream, 
+  processWithHistoryStream 
+} from '../utils/GeminiHandler';
 import { convertChatMessagesToHistory, ConversationHistory, generateConversationId } from '../utils/HistoryManager';
 import LoginModal from './LoginModal';
 
@@ -21,8 +27,12 @@ interface ChatMessage {
   isUser: boolean;
   timestamp: Date; 
   isThinking?: boolean;
+  isReasoning?: boolean;
+  isSearching?: boolean;
   type?: 'text' | 'image' | 'file';
   fileInfo?: { name: string; type: string; size: number };
+  images?: { data: string; type: string; name: string }[];
+  thinkDuration?: number;
 }
 
 // Add props interface for ChatBox
@@ -31,7 +41,8 @@ interface ChatBoxProps {
 }
 
 const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
-  // Add theme context
+  // Add theme context and router
+  const router = useRouter();
   const { resolvedTheme } = useTheme();
   const [isSearchToggled, setIsSearchToggled] = useState(false);
   const [isReasonToggled, setIsReasonToggled] = useState(false);
@@ -61,6 +72,8 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
   const [originalMessages, setOriginalMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [attachedImages, setAttachedImages] = useState<{ data: string; type: string; name: string }[]>([]);
+  const [videoModeEnabled, setVideoModeEnabled] = useState<boolean>(false);
 
   const { user, loggedIn, loading: authLoading } = useAuth();
   const { isIncognitoMode } = useIncognito();
@@ -86,7 +99,10 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
         id: uuidv4(),
         text: msg.content,
         isUser: msg.role === 'user',
-        timestamp: new Date(msg.timestamp)
+        timestamp: new Date(msg.timestamp),
+        isReasoning: msg.isReasoning,
+        thinkDuration: msg.thinkDuration,
+        images: msg.images // Include images when loading from history
       }));
       
       setMessages(convertedMessages);
@@ -188,7 +204,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
   }, [authLoading, loggedIn, user]);
 
   const handleSearchToggle = () => {
-    setIsSearchToggled(!isSearchToggled);
+    // Toggle search state
+    const newSearchState = !isSearchToggled;
+    setIsSearchToggled(newSearchState);
   };
 
   const handleReasonToggle = () => {
@@ -218,12 +236,12 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
   const paperclipDisabled = isAgenticResearchToggled;
 
   // Add purple glow if incognito mode is active
-  const incognitoGlowStyle: CSSProperties = isIncognitoMode ? {
+  const incognitoGlowStyle: ReactCSSProperties = isIncognitoMode ? {
     boxShadow: '0 0 0 2px rgba(160, 32, 240, 0.6), 0 0 10px rgba(160, 32, 240, 0.4), 0 0 20px rgba(160, 32, 240, 0.2)',
     border: '1px solid rgba(160, 32, 240, 0.8)'
   } : {};
 
-  const commonBlackButtonStyle: CSSProperties = {
+  const commonBlackButtonStyle: ReactCSSProperties = {
     width: '2.25rem',
     height: '2.25rem',
     borderRadius: '9999px',
@@ -236,7 +254,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
     cursor: 'pointer',
   };
 
-  const shimmerTextStyle: CSSProperties = {
+  const shimmerTextStyle: ReactCSSProperties = {
     position: 'relative',
     display: 'inline-block',
     color: 'var(--foreground)',
@@ -269,7 +287,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
   }, []);
 
   // Modified wrapper style for conditional positioning
-  const wrapperStyle: CSSProperties = {
+  const wrapperStyle: ReactCSSProperties = {
     display: 'flex',
     flexDirection: 'column',
     justifyContent: hasMessages ? 'flex-end' : 'center', // Center when no messages, bottom when chatting
@@ -284,7 +302,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
   };
 
   // Modified container style
-  const containerStyle: CSSProperties = {
+  const containerStyle: ReactCSSProperties = {
     display: 'flex',
     flexDirection: 'column',
     width: '100%',
@@ -298,7 +316,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
   };
 
   // Input container style - only fixed position when there are messages
-  const inputContainerStyle: CSSProperties = hasMessages ? {
+  const inputContainerStyle: ReactCSSProperties = hasMessages ? {
     position: 'fixed',
     bottom: '1rem',
     left: '50%',
@@ -314,7 +332,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
     zIndex: 20,
   };
 
-  const dynamicContainerStyle: CSSProperties = {
+  const dynamicContainerStyle: ReactCSSProperties = {
     ...containerStyle,
     boxShadow: isMobile && isTextareaFocused ? 'var(--shadow-lg)' : 'none',
     ...(isTextareaFocused ? {} : { 
@@ -324,7 +342,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
     }),
   };
 
-  const inputIconStyle: CSSProperties = {
+  const inputIconStyle: ReactCSSProperties = {
     color: 'var(--foreground-secondary)',
     width: '1rem',
     height: '1rem'
@@ -375,7 +393,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
     }
   };
 
-  // Update handleRegenerateMessage to use Gemini
+  // Modifying handleRegenerateMessage to include thinking budget
   const handleRegenerateMessage = async () => {
     // Find the last user message before the AI message
     const messagesCopy = [...messages];
@@ -390,63 +408,138 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
       }
     }
     
-    if (lastUserMessageIndex === -1) return;
+    if (lastUserMessageIndex === -1) {
+      console.error('No user message found to regenerate from');
+      return;
+    }
     
     const lastUserMessage = messagesCopy[lastUserMessageIndex];
     setMessages(messagesCopy); // Remove the AI message
     
-    // Add thinking indicator
-    const thinkingMessageId = uuidv4();
-    const thinkingMessage: ChatMessage = {
-      id: thinkingMessageId,
+    // Get thinking budget - explicitly set to 0 if reason is off
+    const thinkingBudget = isReasonToggled ? 8192 : 0;
+    console.log(`Using thinking budget: ${thinkingBudget} (Reason: ${isReasonToggled ? 'ON' : 'OFF'})`);
+    console.log(`Search mode: ${isSearchToggled ? 'ON' : 'OFF'}`);
+    
+    // Add thinking indicator and create a response message that will be streamed
+    const aiResponseId = uuidv4();
+    const aiResponseMessage: ChatMessage = {
+      id: aiResponseId,
       text: '',
       isUser: false,
       timestamp: new Date(),
-      isThinking: true
+      isThinking: true,
+      isReasoning: isReasonToggled,
+      isSearching: isSearchToggled
     };
     
-    setMessages(prev => [...prev, thinkingMessage]);
+    setMessages(prev => [...prev, aiResponseMessage]);
     
     try {
-      // Get response from Gemini
-      const response = await processWithGemini(lastUserMessage.text);
+      // Convert previous messages to history format for context
+      const historyMessages = convertChatMessagesToHistory(messagesCopy);
       
-      // Update messages with Gemini response
-      setMessages(prevMessages => {
-        const filteredMessages = prevMessages.filter(m => m.id !== thinkingMessageId);
-        const aiResponse: ChatMessage = {
-          id: uuidv4(),
-          text: response,
-          isUser: false,
-          timestamp: new Date(),
-        };
-        return [...filteredMessages, aiResponse];
-      });
+      // Process streaming chunks with history
+      await processWithHistoryStream(
+        lastUserMessage.text,
+        historyMessages,
+        (chunk) => {
+          // Update message with each chunk received
+          setMessages(prevMessages => {
+            const updatedMessages = [...prevMessages];
+            const responseIndex = updatedMessages.findIndex(m => m.id === aiResponseId);
+            
+            if (responseIndex !== -1) {
+              // Update existing message with accumulated text and remove thinking state
+              updatedMessages[responseIndex] = {
+                ...updatedMessages[responseIndex],
+                text: updatedMessages[responseIndex].text + chunk,
+                isThinking: false
+              };
+            }
+            
+            return updatedMessages;
+          });
+        },
+        thinkingBudget,
+        isSearchToggled // Pass search toggle state
+      );
     } catch (error) {
       console.error('Error getting Gemini response:', error);
-      // Handle error with fallback response
-      setMessages(prevMessages => {
-        const filteredMessages = prevMessages.filter(m => m.id !== thinkingMessageId);
-        const aiResponse: ChatMessage = {
-          id: uuidv4(),
-          text: 'Sorry, I encountered an issue regenerating a response.',
-          isUser: false,
-          timestamp: new Date(),
-        };
-        return [...filteredMessages, aiResponse];
-      });
+      // Handle error case (already handled in the stream function)
     }
   };
 
-  // Update handleSendMessage to handle editing and use Gemini
+  // Handle file input change for image attachments
+  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    // Check if adding these files would exceed the 10 image limit
+    if (attachedImages.length + files.length > 10) {
+      alert("You can only attach up to 10 images at once.");
+      return;
+    }
+    
+    // Process each selected file
+    Array.from(files).forEach(file => {
+      // Check if file is an image of supported type
+      const validImageTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/heic', 'image/heif'];
+      if (!validImageTypes.includes(file.type)) {
+        alert(`File type ${file.type} is not supported. Please select images only.`);
+        return;
+      }
+      
+      // Read the file as data URL (base64)
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        if (result) {
+          setAttachedImages(prev => [
+            ...prev, 
+            { 
+              data: result,
+              type: file.type,
+              name: file.name
+            }
+          ]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+    
+    // Reset the file input to allow selecting the same file again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+  
+  // Remove an attached image
+  const removeAttachedImage = (index: number) => {
+    setAttachedImages(prev => prev.filter((_, i) => i !== index));
+  };
+  
+  // Handle clicking the attachment button
+  const handleAttachmentClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  // Update handleSendMessage to include attached images
   const handleSendMessage = async () => {
-    if (textareaValue.trim() === '') return;
+    if (textareaValue.trim() === '' && attachedImages.length === 0) return;
     
     // Check if user is logged in before allowing to send message
     if (!loggedIn) {
       setIsLoginModalOpen(true);
       return;
     }
+    
+    // Get thinking budget - explicitly set to 0 if reason is off
+    const thinkingBudget = isReasonToggled ? 8192 : 0;
+    console.log(`Using thinking budget: ${thinkingBudget} (Reason: ${isReasonToggled ? 'ON' : 'OFF'})`);
+    console.log(`Search mode: ${isSearchToggled ? 'ON' : 'OFF'}`);
     
     if (isEditingMessage && editingMessageId) {
       // Handle message editing
@@ -467,17 +560,19 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
       setHasMessages(true);
       setBottomPosition(true);
       
-      // Add thinking indicator
-      const thinkingMessageId = uuidv4();
-      const thinkingMessage: ChatMessage = {
-        id: thinkingMessageId,
+      // Add AI response message that will be streamed
+      const aiResponseId = uuidv4();
+      const aiResponseMessage: ChatMessage = {
+        id: aiResponseId,
         text: '',
         isUser: false,
         timestamp: new Date(),
-        isThinking: true
+        isThinking: true,
+        isReasoning: isReasonToggled,
+        isSearching: isSearchToggled
       };
       
-      setMessages(prevMessages => [...prevMessages, thinkingMessage]);
+      setMessages(prevMessages => [...prevMessages, aiResponseMessage]);
       
       // Reset states
       setTextareaValue('');
@@ -489,33 +584,35 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
         // Convert previous messages to history format for context
         const historyMessages = convertChatMessagesToHistory(newMessages);
         
-        // Get response from Gemini with history
-        const response = await processWithHistory(updatedMessages[editIndex].text, historyMessages);
-        
-        // Update messages with Gemini response
-        setMessages(prevMessages => {
-          const filteredMessages = prevMessages.filter(m => m.id !== thinkingMessageId);
-          const aiResponse: ChatMessage = {
-            id: uuidv4(),
-            text: response,
-            isUser: false,
-            timestamp: new Date(),
-          };
-          return [...filteredMessages, aiResponse];
-        });
+        // Get streaming response from Gemini with history
+        await processWithHistoryStream(
+          updatedMessages[editIndex].text, 
+          historyMessages, 
+          (chunk) => {
+            // Update message with each chunk received
+            setMessages(prevMessages => {
+              const currentMessages = [...prevMessages];
+              const responseIndex = currentMessages.findIndex(m => m.id === aiResponseId);
+              
+              if (responseIndex !== -1) {
+                // Update existing message with accumulated text and remove thinking state
+                currentMessages[responseIndex] = {
+                  ...currentMessages[responseIndex],
+                  text: currentMessages[responseIndex].text + chunk,
+                  isThinking: false
+                };
+              }
+              
+              return currentMessages;
+            });
+          },
+          thinkingBudget,
+          isSearchToggled, // Pass search toggle state
+          updatedMessages[editIndex].images // Pass attached images
+        );
       } catch (error) {
         console.error('Error getting Gemini response:', error);
-        // Handle error with fallback response
-        setMessages(prevMessages => {
-          const filteredMessages = prevMessages.filter(m => m.id !== thinkingMessageId);
-          const aiResponse: ChatMessage = {
-            id: uuidv4(),
-            text: 'Sorry, I encountered an issue processing your request.',
-            isUser: false,
-            timestamp: new Date(),
-          };
-          return [...filteredMessages, aiResponse];
-        });
+        // Error handling is done within the stream function
       }
       
       return;
@@ -526,7 +623,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
       id: uuidv4(),
       text: textareaValue,
       isUser: true,
-      timestamp: new Date()
+      timestamp: new Date(),
+      isSearching: isSearchToggled,
+      images: attachedImages.length > 0 ? attachedImages : undefined
     };
     
     const userMessageText = textareaValue;
@@ -536,52 +635,59 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
     setHasMessages(true);
     setBottomPosition(true);
     
+    // Clear attached images after sending
+    setAttachedImages([]);
+    
     // Simulate AI response
     setIsResponding(true);
     
-    // Add AI thinking indicator
-    const thinkingMessageId = uuidv4();
-    const thinkingMessage: ChatMessage = {
-      id: thinkingMessageId,
+    // Add AI response message that will be streamed
+    const aiResponseId = uuidv4();
+    const aiResponseMessage: ChatMessage = {
+      id: aiResponseId,
       text: '',
       isUser: false,
       timestamp: new Date(),
-      isThinking: true
+      isThinking: true,
+      isReasoning: isReasonToggled,
+      isSearching: isSearchToggled
     };
     
-    setMessages(prevMessages => [...prevMessages, thinkingMessage]);
+    setMessages(prevMessages => [...prevMessages, aiResponseMessage]);
     
     try {
       // Convert previous messages to history format for context
       const historyMessages = convertChatMessagesToHistory(messages);
       
-      // Get response from Gemini with history
-      const response = await processWithHistory(userMessageText, historyMessages);
-      
-      // Update messages with Gemini response
-      setMessages(prevMessages => {
-        const filteredMessages = prevMessages.filter(m => m.id !== thinkingMessageId);
-        const aiResponse: ChatMessage = {
-          id: uuidv4(),
-          text: response,
-          isUser: false,
-          timestamp: new Date(),
-        };
-        return [...filteredMessages, aiResponse];
-      });
+      // Get streaming response from Gemini with history
+      await processWithHistoryStream(
+        userMessageText, 
+        historyMessages, 
+        (chunk) => {
+          // Update message with each chunk received
+          setMessages(prevMessages => {
+            const currentMessages = [...prevMessages];
+            const responseIndex = currentMessages.findIndex(m => m.id === aiResponseId);
+            
+            if (responseIndex !== -1) {
+              // Update existing message with accumulated text and remove thinking state
+              currentMessages[responseIndex] = {
+                ...currentMessages[responseIndex],
+                text: currentMessages[responseIndex].text + chunk,
+                isThinking: false
+              };
+            }
+            
+            return currentMessages;
+          });
+        },
+        thinkingBudget,
+        isSearchToggled, // Pass search toggle state
+        attachedImages.length > 0 ? newUserMessage.images : undefined // Pass attached images
+      );
     } catch (error) {
       console.error('Error getting Gemini response:', error);
-      // Handle error with fallback response
-      setMessages(prevMessages => {
-        const filteredMessages = prevMessages.filter(m => m.id !== thinkingMessageId);
-        const aiResponse: ChatMessage = {
-          id: uuidv4(),
-          text: 'Sorry, I encountered an issue processing your request.',
-          isUser: false,
-          timestamp: new Date(),
-        };
-        return [...filteredMessages, aiResponse];
-      });
+      // Error handling is done within the stream function
     } finally {
       setIsResponding(false);
     }
@@ -629,6 +735,54 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
       </div>
     </div>
   );
+
+  // Delete a user message and the following AI message and all after
+  const handleDeleteMessage = (messageId: string) => {
+    const userMsgIdx = messages.findIndex(m => m.id === messageId && m.isUser);
+    if (userMsgIdx === -1) return;
+    // Find the next AI message after the user message
+    let endIdx = userMsgIdx + 1;
+    while (endIdx < messages.length && messages[endIdx].isUser) {
+      endIdx++;
+    }
+    // If the next message is AI, include it
+    if (endIdx < messages.length && !messages[endIdx].isUser) {
+      endIdx++;
+    }
+    // Remove all messages from userMsgIdx to end
+    setMessages(messages.slice(0, userMsgIdx));
+    setHasMessages(messages.slice(0, userMsgIdx).length > 0);
+  };
+
+  // Add image preview component
+  const ImagePreview = () => {
+    if (attachedImages.length === 0) return null;
+    
+    return (
+      <div className="flex flex-wrap gap-2 p-3 border-b border-card-border">
+        {attachedImages.map((image, index) => (
+          <div key={index} className="relative group">
+            <img 
+              src={image.data} 
+              alt={`Attached image ${index + 1}`} 
+              className="w-20 h-20 object-cover rounded-md border border-card-border"
+            />
+            <button
+              onClick={() => removeAttachedImage(index)}
+              className="absolute -top-2 -right-2 bg-background text-destructive p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+              aria-label="Remove image"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
+            </button>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div style={wrapperStyle}>
@@ -684,6 +838,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
             isVisible={hasMessages}
             onEditMessage={handleEditMessage}
             onRegenerateMessage={handleRegenerateMessage}
+            onDeleteMessage={handleDeleteMessage}
             userId={user?.createdAt?.toString() || `guest-${Date.now()}`}
             conversationId={conversationId || undefined}
             isIncognitoMode={isIncognitoMode}
@@ -717,6 +872,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
                   </button>
                 </div>
               )}
+              
+              {/* Render image preview component */}
+              <ImagePreview />
               
               {(isTextareaExpanded || textareaValue.trim().length > 0) && (
                 <button
@@ -762,22 +920,25 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
                 }}
               />
               <div className="absolute bottom-4 right-4 flex items-center space-x-2">
-                <button
-                  id="video-input-button"
-                  type="button"
-                  style={commonBlackButtonStyle}
-                  aria-label="Start video input"
-                  data-tooltip-id="chatbox-tooltip"
-                  data-tooltip-content="Start video input"
-                  data-tooltip-place="top"
-                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary-hover)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-                  onTouchStart={isMobile ? (e) => handleMobileItemTouchStart(e, 'video-input-button') : undefined}
-                  onTouchEnd={isMobile ? () => handleMobileItemTouchEnd('video-input-button') : undefined}
-                  onTouchMove={isMobile ? handleMobileItemTouchMove : undefined}
-                >
-                  <LuVideo style={{ width: '1.25rem', height: '1.25rem', color: 'var(--primary-foreground)' }} />
-                </button>
+                {videoModeEnabled && (
+                  <button
+                    id="video-input-button"
+                    type="button"
+                    style={commonBlackButtonStyle}
+                    aria-label="Start video input"
+                    data-tooltip-id="chatbox-tooltip"
+                    data-tooltip-content="Start video input"
+                    data-tooltip-place="top"
+                    onClick={() => router.push('/multimodal')}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary-hover)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                    onTouchStart={isMobile ? (e) => handleMobileItemTouchStart(e, 'video-input-button') : undefined}
+                    onTouchEnd={isMobile ? () => handleMobileItemTouchEnd('video-input-button') : undefined}
+                    onTouchMove={isMobile ? handleMobileItemTouchMove : undefined}
+                  >
+                    <LuVideo style={{ width: '1.25rem', height: '1.25rem', color: 'var(--primary-foreground)' }} />
+                  </button>
+                )}
                 <button
                   id="send-button"
                   type="button"
@@ -832,13 +993,14 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
                   }`}
                   aria-label="Attach file"
                   data-tooltip-id="chatbox-tooltip"
-                  data-tooltip-content="Attach Files"
+                  data-tooltip-content="Attach Images"
                   data-tooltip-place="top"
                   style={{ 
                     backgroundColor: paperclipDisabled ? 'var(--secondary)' : 'var(--background-secondary)', 
                     borderColor: 'var(--border)',
                     color: paperclipDisabled ? 'var(--foreground-secondary)' : 'var(--foreground-secondary)'
                   }}
+                  onClick={!paperclipDisabled ? handleAttachmentClick : undefined}
                   onMouseEnter={(e) => !paperclipDisabled && (e.currentTarget.style.backgroundColor = 'var(--secondary)')}
                   onMouseLeave={(e) => !paperclipDisabled && (e.currentTarget.style.backgroundColor = 'var(--background-secondary)')}
                   onTouchStart={!paperclipDisabled && isMobile ? (e) => handleMobileItemTouchStart(e, 'attach-file-button') : undefined}
@@ -857,7 +1019,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
                   }`}
                   aria-label="Search"
                   data-tooltip-id="chatbox-tooltip"
-                  data-tooltip-content="Always Browse the web"
+                  data-tooltip-content="Browse the web"
                   data-tooltip-place="top"
                   style={{ 
                     backgroundColor: searchDisabled ? 'var(--secondary)' : (isSearchToggled ? 'var(--accent)' : 'var(--background-secondary)'), 
@@ -905,26 +1067,21 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
                   id="agentic-button"
                   type="button"
                   onClick={handleAgenticResearchToggle}
-                  disabled={agenticResearchDisabled}
-                  className={`p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center active:scale-95 ${agenticResearchDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  disabled={true}
+                  className="p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center opacity-50 cursor-not-allowed"
                   aria-label="Agentic Search"
                   data-tooltip-id="chatbox-tooltip"
-                  data-tooltip-content="Smart Web Search ~ BETA"
+                  data-tooltip-content="COMING SOON"
                   data-tooltip-place="top"
                   style={{ 
-                    backgroundColor: agenticResearchDisabled ? 'var(--secondary)' : (isAgenticResearchToggled ? 'var(--accent)' : 'var(--background-secondary)'), 
+                    backgroundColor: 'var(--secondary)', 
                     borderWidth: 1,
                     borderStyle: 'solid',
-                    borderColor: agenticResearchDisabled ? 'var(--border)' : (isAgenticResearchToggled ? 'var(--accent-foreground)' : 'var(--border)'),
-                    color: agenticResearchDisabled ? 'var(--foreground-secondary)' : (isAgenticResearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')
+                    borderColor: 'var(--border)',
+                    color: 'var(--foreground-secondary)'
                   }}
-                  onMouseEnter={(e) => !agenticResearchDisabled && (e.currentTarget.style.backgroundColor = isAgenticResearchToggled ? 'var(--accent)' : 'var(--secondary)')}
-                  onMouseLeave={(e) => !agenticResearchDisabled && (e.currentTarget.style.backgroundColor = isAgenticResearchToggled ? 'var(--accent)' : 'var(--background-secondary)')}
-                  onTouchStart={!agenticResearchDisabled && isMobile ? (e) => handleMobileItemTouchStart(e, 'agentic-button') : undefined}
-                  onTouchEnd={!agenticResearchDisabled && isMobile ? () => handleMobileItemTouchEnd('agentic-button') : undefined}
-                  onTouchMove={!agenticResearchDisabled && isMobile ? handleMobileItemTouchMove : undefined}
                 >
-                  <LuSparkles style={{...inputIconStyle, color: agenticResearchDisabled ? 'var(--foreground-secondary)' : (isAgenticResearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')}} />
+                  <LuSparkles style={{...inputIconStyle, color: 'var(--foreground-secondary)'}} />
                   <span style={{ color: 'var(--foreground)' }} className={`hidden sm:inline ml-2 text-sm`}>Agentic Search</span>
                 </button>
               </div>
@@ -963,14 +1120,14 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
       />
       <Tooltip 
         anchorSelect="#attach-file-button" 
-        content="Attach Files" 
+        content="Attach Images" 
         isOpen={mobileTooltipTargetId === 'attach-file-button'} 
         place="top"
         style={{zIndex: 1002}} 
       />
       <Tooltip 
         anchorSelect="#search-button" 
-        content="Always Browse the web" 
+        content="Browse the web" 
         isOpen={mobileTooltipTargetId === 'search-button'} 
         place="top"
         style={{zIndex: 1002}} 
@@ -984,10 +1141,19 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
       />
       <Tooltip 
         anchorSelect="#agentic-button" 
-        content="Smart Web Search ~ BETA" 
+        content="COMING SOON" 
         isOpen={mobileTooltipTargetId === 'agentic-button'} 
         place="top"
         style={{zIndex: 1002}} 
+      />
+      
+      <input 
+        type="file" 
+        ref={fileInputRef}
+        accept="image/png,image/jpeg,image/jpg,image/webp,image/heic,image/heif"
+        multiple
+        style={{ display: 'none' }}
+        onChange={handleFileInputChange}
       />
     </div>
   );

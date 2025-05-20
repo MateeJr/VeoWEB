@@ -16,7 +16,7 @@ interface ChatPageProps {
 export default function ChatPage() {
   // Use useParams hook to get the params safely
   const params = useParams();
-  const conversationId = params.id as string;
+  const conversationId = params?.id as string;
   
   const router = useRouter();
   const { user, loading } = useAuth();

@@ -3,6 +3,9 @@ export interface MessageHistory {
   role: 'user' | 'model';
   content: string;
   timestamp: string;
+  isReasoning?: boolean; // Add flag to store if reason mode was on
+  thinkDuration?: number; // Add duration of thinking in milliseconds
+  images?: { data: string; type: string; name: string }[]; // Add support for storing images
 }
 
 export interface ConversationHistory {
@@ -79,15 +82,24 @@ export const searchConversationsContent = async (userId: string, query: string):
     // Search in both title and message content
     const lowerQuery = query.toLowerCase().trim();
     return allConversations.filter(conversation => {
-      // Check title
-      if (conversation.title.toLowerCase().includes(lowerQuery)) {
+      // Check if conversation object and title exist
+      if (!conversation || typeof conversation !== 'object') {
+        return false;
+      }
+      
+      // Check title if it exists
+      if (conversation.title && conversation.title.toLowerCase().includes(lowerQuery)) {
         return true;
       }
       
-      // Check message content
-      return conversation.messages.some(message => 
-        message.content.toLowerCase().includes(lowerQuery)
-      );
+      // Check message content if messages array exists and is not empty
+      if (conversation.messages && Array.isArray(conversation.messages) && conversation.messages.length > 0) {
+        return conversation.messages.some(message => 
+          message && message.content && message.content.toLowerCase().includes(lowerQuery)
+        );
+      }
+      
+      return false;
     });
   } catch (error) {
     console.error('Failed to search conversations:', error);
@@ -114,12 +126,34 @@ export const deleteConversation = async (userId: string, conversationId: string)
   }
 };
 
+// Delete all conversations for a user
+export const deleteAllConversations = async (userId: string): Promise<boolean> => {
+  try {
+    const response = await fetch('/api/history/delete-all', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId }),
+    });
+    
+    const data = await response.json();
+    return data.success === true;
+  } catch (error) {
+    console.error('Failed to delete all conversations:', error);
+    return false;
+  }
+};
+
 // Convert ChatMessage array to MessageHistory array
 export const convertChatMessagesToHistory = (messages: any[]): MessageHistory[] => {
   return messages.map(msg => ({
     role: msg.isUser ? 'user' : 'model',
     content: msg.text,
-    timestamp: msg.timestamp.toISOString()
+    timestamp: msg.timestamp.toISOString(),
+    isReasoning: msg.isReasoning, // Store reasoning flag
+    thinkDuration: msg.thinkDuration, // Store thinking duration
+    images: msg.images // Store images if present
   }));
 };
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, CSSProperties, ReactElement } from 'react';
-import { LuX, LuUser, LuPalette, LuDatabase, LuWand, LuInfo, LuArrowLeft, LuChevronRight, LuClock, LuKey, LuShieldAlert, LuLogOut, LuPencil, LuCheck, LuTriangle, LuSun, LuMoon, LuMonitor, LuClipboard, LuActivity, LuGlobe, LuMap, LuMapPin, LuNetwork, LuLaptop, LuCode, LuLogIn } from 'react-icons/lu';
+import { LuX, LuUser, LuPalette, LuDatabase, LuWand, LuInfo, LuArrowLeft, LuChevronRight, LuClock, LuKey, LuShieldAlert, LuLogOut, LuPencil, LuCheck, LuTriangle, LuSun, LuMoon, LuMonitor, LuClipboard, LuActivity, LuGlobe, LuMap, LuMapPin, LuNetwork, LuLaptop, LuCode, LuLogIn, LuHistory } from 'react-icons/lu';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   logoutUser,
@@ -51,6 +51,7 @@ const menuItems = [
   { id: 'appearance', name: 'Appearance', icon: LuPalette },
   { id: 'dataControls', name: 'Data Controls', icon: LuDatabase },
   { id: 'customization', name: 'Customization', icon: LuWand },
+  { id: 'changelog', name: 'Changelog', icon: LuHistory },
   { id: 'about', name: 'About', icon: LuInfo },
 ];
 
@@ -686,7 +687,7 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
           padding: isSmallScreen ? '2rem 1.5rem 1.5rem 1.5rem' : '2rem 2.5rem 1.5rem 2.5rem',
           border: '1px solid var(--card-border)',
           boxShadow: 'var(--shadow-sm)',
-          margin: isSmallScreen ? '1.5rem 0 1.5rem 0' : '2.5rem auto 2rem auto',
+          margin: isSmallScreen ? '1.5rem 0 1rem 0' : '2rem auto 1rem auto',
           maxWidth: '800px',
           display: 'flex',
           flexDirection: isSmallScreen ? 'column' : 'row',
@@ -757,7 +758,7 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
           </div>
         </div>
         {/* Main content area with consistent padding */}
-        <div style={{ padding: '2rem' }}>
+        <div style={{ padding: '1rem 2rem' }}>
           {isLoadingProfile ? (
             <div style={accountModalStyles.loadingContainer}>
               <div style={accountModalStyles.loadingText}>Loading account data...</div>
@@ -771,7 +772,7 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: isSmallScreen ? '1fr' : 'repeat(2, 1fr)',
-                gap: '1.5rem',
+                gap: '1rem',
                 width: '100%',
               }}>
                 {/* Left Card: User Profile */}
@@ -1014,16 +1015,17 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
                 <div style={{
                   backgroundColor: 'var(--background-secondary)',
                   borderRadius: '0.75rem',
-                  padding: '1.5rem',
+                  padding: '1.25rem',
                   border: '1px solid var(--card-border)',
                   boxShadow: 'var(--shadow-sm)',
                   gridColumn: isSmallScreen ? 'auto' : 'span 2',
+                  marginTop: '0.5rem',
                 }}>
                   <h3 style={{
                     fontSize: '1.25rem',
                     fontWeight: '600',
                     color: 'var(--foreground)',
-                    margin: '0 0 1.5rem 0',
+                    margin: '0 0 1rem 0',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.75rem',
@@ -1627,6 +1629,129 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
     );
   };
 
+  const renderChangelogContent = () => {
+    return (
+      <div style={{ padding: '1.25rem', color: 'var(--foreground)' }}>
+        <h2 style={{ 
+          fontSize: '1.5rem', 
+          fontWeight: '600', 
+          marginBottom: '1.5rem', 
+          color: 'var(--foreground)',
+          textAlign: 'center' 
+        }}>
+          VEO Changelog
+        </h2>
+        
+        <div style={{ 
+          backgroundColor: 'var(--card-background)', 
+          border: '1px solid var(--card-border)',
+          borderRadius: '0.75rem',
+          padding: '1.5rem',
+          marginBottom: '1.5rem',
+          boxShadow: 'var(--shadow-md)'
+        }}>
+          <div style={{ 
+            display: 'flex',
+            alignItems: 'center',
+            marginBottom: '1rem',
+            borderBottom: '1px solid var(--border)',
+            paddingBottom: '0.75rem'
+          }}>
+            <div style={{
+              backgroundColor: 'var(--primary)',
+              color: 'var(--primary-foreground)',
+              borderRadius: '0.5rem',
+              padding: '0.375rem 0.75rem',
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              marginRight: '1rem'
+            }}>
+              v1.0.0
+            </div>
+            <div style={{
+              fontSize: '0.9375rem',
+              color: 'var(--foreground-secondary)',
+              fontWeight: '500'
+            }}>
+              20 May 2025
+            </div>
+          </div>
+          
+          <h3 style={{
+            fontSize: '1.125rem',
+            fontWeight: '600',
+            marginBottom: '1rem',
+            color: 'var(--foreground)'
+          }}>
+            🎉 First Release of VEO!
+          </h3>
+          
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem'
+          }}>
+            <div>
+              <h4 style={{
+                fontSize: '1rem',
+                fontWeight: '600',
+                marginBottom: '0.5rem',
+                color: 'var(--foreground)'
+              }}>
+                Features:
+              </h4>
+              <ul style={{
+                marginLeft: '1.5rem',
+                color: 'var(--foreground-secondary)',
+                fontSize: '0.9375rem',
+                lineHeight: '1.6'
+              }}>
+                <li>Advanced AI assistant capabilities with 200,000 token context window</li>
+                <li>Cross-platform support for desktop and mobile devices</li>
+                <li>Real-time information lookup and fact-checking</li>
+                <li>User accounts with secure authentication</li>
+                <li>Customizable theme options (Light, Dark, System)</li>
+                <li>Comprehensive data privacy controls</li>
+              </ul>
+            </div>
+            
+            <div>
+              <h4 style={{
+                fontSize: '1rem',
+                fontWeight: '600',
+                marginBottom: '0.5rem',
+                color: 'var(--foreground)'
+              }}>
+                Known Issues:
+              </h4>
+              <ul style={{
+                marginLeft: '1.5rem',
+                color: 'var(--foreground-secondary)',
+                fontSize: '0.9375rem',
+                lineHeight: '1.6'
+              }}>
+                <li>Occasional latency when processing very long conversations</li>
+                <li>Limited compatibility with older browser versions</li>
+                <li>Customization features still in development</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div style={{
+            marginTop: '1.5rem',
+            borderTop: '1px solid var(--border)',
+            paddingTop: '1rem',
+            fontSize: '0.875rem',
+            color: 'var(--foreground-secondary)',
+            fontStyle: 'italic'
+          }}>
+            Thank you for being part of our initial release! We're committed to continuously improving VEO with regular updates.
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderSubpageContent = (selectedItem: { id: string; name: string; icon: React.ElementType } | undefined) => {
     switch (selectedItem?.id) {
       case 'account':
@@ -1637,6 +1762,8 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
         return renderDataControlsContent();
       case 'customization':
         return renderCustomizationContent();
+      case 'changelog':
+        return renderChangelogContent();
       case 'about':
         return renderAboutContent();
       default:

@@ -7,5 +7,14 @@
     "createdAt": 1747501247325,
     "allowLogging": false,
     "allowTelemetry": true
+  },
+  {
+    "email": "mtelejr@gmail.com",
+    "password": "Ubitopia00",
+    "username": "Vallianx",
+    "deviceFingerprint": "-6d852773",
+    "createdAt": 1747680576509,
+    "allowLogging": false,
+    "allowTelemetry": true
   }
 ]
