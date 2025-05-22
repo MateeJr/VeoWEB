@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useRef, CSSProperties } from 'react';
-import { LuMenu, LuUser, LuHistory, LuChevronDown, LuMessageSquare, LuEye, LuEyeOff } from 'react-icons/lu';
+import { LuMenu, LuUser, LuHistory, LuChevronDown, LuMessageSquare, LuEye, LuEyeOff, LuDollarSign } from 'react-icons/lu';
 import { Tooltip } from 'react-tooltip';
 import { useAuth, User } from '../utils/auth';
 import LoginModal from './LoginModal';
 import { useIncognito } from '../contexts/IncognitoContext';
 import Menu from './Menu';
 import HistoryPanel from './HistoryPanel';
+import PricingPanel from './PricingPanel';
 import { AnimatePresence } from 'framer-motion';
 import { useTheme } from '../contexts/ThemeContext';
 import { usePathname } from 'next/navigation';
@@ -30,6 +31,7 @@ const Header = () => {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showMenuPanel, setShowMenuPanel] = useState(false);
   const [showHistoryPanel, setShowHistoryPanel] = useState(false);
+  const [showPricingPanel, setShowPricingPanel] = useState(false);
   const [menuInitialTab, setMenuInitialTab] = useState<string | undefined>(undefined);
   const pathname = usePathname();
 
@@ -253,6 +255,10 @@ const Header = () => {
     setShowHistoryPanel(true);
   };
 
+  const handlePricingButtonClick = () => {
+    setShowPricingPanel(true);
+  };
+
   const dropdownItemStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
@@ -296,6 +302,8 @@ const Header = () => {
         }
     } else if (action === 'history' || action === 'history_small') {
         setShowHistoryPanel(true);
+    } else if (action === 'pricing_small') {
+        setShowPricingPanel(true);
     }
   };
 
@@ -437,6 +445,21 @@ const Header = () => {
               <button
                 style={iconButtonStyle}
                 data-tooltip-id="header-tooltip"
+                data-tooltip-content="Pricing"
+                data-tooltip-place="bottom"
+                onMouseDown={handleMouseDown}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onClick={handlePricingButtonClick}
+                onTouchStart={isSmallScreen ? (e) => handleMobileItemTouchStart(e, 'pricing-button') : undefined}
+                onTouchEnd={isSmallScreen ? () => handleMobileItemTouchEnd('pricing-button') : undefined}
+                onTouchMove={isSmallScreen ? handleMobileItemTouchMove : undefined}
+              >
+                <LuDollarSign style={iconStyle} />
+              </button>
+              <button
+                style={iconButtonStyle}
+                data-tooltip-id="header-tooltip"
                 data-tooltip-content="Menu"
                 data-tooltip-place="bottom"
                 onMouseDown={handleMouseDown}
@@ -533,6 +556,21 @@ const Header = () => {
                 Chat History
               </button>
               <button
+                id="mobile-dropdown-pricing"
+                style={{...dropdownItemStyle, borderBottom: '1px solid var(--border)'}}
+                onMouseDown={handleDropdownItemMouseDown}
+                onMouseUp={handleDropdownItemMouseUp}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.transform = 'scale(1)';}}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--secondary)';}}
+                onClick={() => onDropdownItemClick('pricing_small')}
+                onTouchStart={(e) => handleMobileItemTouchStart(e, 'mobile-dropdown-pricing')}
+                onTouchEnd={() => handleMobileItemTouchEnd('mobile-dropdown-pricing')}
+                onTouchMove={(e) => handleMobileItemTouchMove(e)}
+              >
+                <LuDollarSign style={dropdownListItemIconStyle} />
+                Pricing
+              </button>
+              <button
                 id="mobile-dropdown-menu"
                 style={dropdownItemStyle}
                 onMouseDown={handleDropdownItemMouseDown}
@@ -595,6 +633,16 @@ const Header = () => {
         headerHeight={HEADER_HEIGHT} // Pass the header height to HistoryPanel
       />
       
+      {/* Pricing Panel Modal */}
+      <AnimatePresence>
+        {showPricingPanel && (
+          <PricingPanel
+            isOpen={showPricingPanel}
+            onClose={() => setShowPricingPanel(false)}
+            isSmallScreen={isSmallScreen}
+          />
+        )}
+      </AnimatePresence>
       {/* Mobile tooltips for desktop header buttons */}
       <Tooltip 
         anchorSelect="button[data-tooltip-content='Disable Incognito Chat'], button[data-tooltip-content='Enable Incognito Chat']" 
@@ -607,6 +655,13 @@ const Header = () => {
         anchorSelect="button[data-tooltip-content='Chat History']" 
         content="Chat History" 
         isOpen={mobileTooltipTargetId === 'history-button'} 
+        place="bottom"
+        style={{zIndex: 1002}}
+      />
+      <Tooltip 
+        anchorSelect="button[data-tooltip-content='Pricing']" 
+        content="Pricing" 
+        isOpen={mobileTooltipTargetId === 'pricing-button'} 
         place="bottom"
         style={{zIndex: 1002}}
       />

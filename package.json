@@ -19,6 +19,7 @@
     "katex": "^0.16.22",
     "lucide-react": "^0.510.0",
     "marked-react": "^3.0.0",
+    "mime": "^4.0.7",
     "next": "15.3.2",
     "node-fetch": "^3.3.2",
     "nodemailer": "^6.9.14",
@@ -33,7 +34,8 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/mime": "^3.0.4",
+    "@types/node": "^20.17.50",
     "@types/nodemailer": "^6.4.15",
     "@types/react": "^18",
     "@types/react-dom": "^18",
