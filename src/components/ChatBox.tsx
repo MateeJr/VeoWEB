@@ -47,6 +47,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
   const [isSearchToggled, setIsSearchToggled] = useState(false);
   const [isReasonToggled, setIsReasonToggled] = useState(false);
   const [isAgenticResearchToggled, setIsAgenticResearchToggled] = useState(false);
+  const [agenticSearchEnabled, setAgenticSearchEnabled] = useState(false);
   const [textareaValue, setTextareaValue] = useState('');
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -1068,27 +1069,36 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
                   <LuLightbulb style={{...inputIconStyle, color: reasonDisabled ? 'var(--foreground-secondary)' : (isReasonToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')}} />
                   <span style={{ color: 'var(--foreground)' }} className={`hidden sm:inline ml-2 text-sm`}>Reason</span>
                 </button>
-                <button
-                  id="agentic-button"
-                  type="button"
-                  onClick={handleAgenticResearchToggle}
-                  disabled={true}
-                  className="p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center opacity-50 cursor-not-allowed"
-                  aria-label="Agentic Search"
-                  data-tooltip-id="chatbox-tooltip"
-                  data-tooltip-content="COMING SOON"
-                  data-tooltip-place="top"
-                  style={{ 
-                    backgroundColor: 'var(--secondary)', 
-                    borderWidth: 1,
-                    borderStyle: 'solid',
-                    borderColor: 'var(--border)',
-                    color: 'var(--foreground-secondary)'
-                  }}
-                >
-                  <LuSparkles style={{...inputIconStyle, color: 'var(--foreground-secondary)'}} />
-                  <span style={{ color: 'var(--foreground)' }} className={`hidden sm:inline ml-2 text-sm`}>Agentic Search</span>
-                </button>
+                {agenticSearchEnabled && (
+                  <button
+                    id="agentic-button"
+                    type="button"
+                    onClick={handleAgenticResearchToggle}
+                    disabled={agenticResearchDisabled}
+                    className={`p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center ${
+                      agenticResearchDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                    }`}
+                    aria-label="Agentic Search"
+                    data-tooltip-id="chatbox-tooltip"
+                    data-tooltip-content="Agentic Search"
+                    data-tooltip-place="top"
+                    style={{
+                      backgroundColor: agenticResearchDisabled ? 'var(--secondary)' : (isAgenticResearchToggled ? 'var(--accent)' : 'var(--background-secondary)'),
+                      borderWidth: 1,
+                      borderStyle: 'solid',
+                      borderColor: agenticResearchDisabled ? 'var(--border)' : (isAgenticResearchToggled ? 'var(--accent-foreground)' : 'var(--border)'),
+                      color: agenticResearchDisabled ? 'var(--foreground-secondary)' : (isAgenticResearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')
+                    }}
+                    onMouseEnter={(e) => !agenticResearchDisabled && (e.currentTarget.style.backgroundColor = isAgenticResearchToggled ? 'var(--accent)' : 'var(--secondary)'))}
+                    onMouseLeave={(e) => !agenticResearchDisabled && (e.currentTarget.style.backgroundColor = isAgenticResearchToggled ? 'var(--accent)' : 'var(--background-secondary)'))}
+                    onTouchStart={!agenticResearchDisabled && isMobile ? (e) => handleMobileItemTouchStart(e, 'agentic-button') : undefined}
+                    onTouchEnd={!agenticResearchDisabled && isMobile ? () => handleMobileItemTouchEnd('agentic-button') : undefined}
+                    onTouchMove={!agenticResearchDisabled && isMobile ? handleMobileItemTouchMove : undefined}
+                  >
+                    <LuSparkles style={{...inputIconStyle, color: agenticResearchDisabled ? 'var(--foreground-secondary)' : (isAgenticResearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')}} />
+                    <span style={{ color: 'var(--foreground)' }} className={`hidden sm:inline ml-2 text-sm`}>Agentic Search</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1146,7 +1156,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
       />
       <Tooltip 
         anchorSelect="#agentic-button" 
-        content="COMING SOON" 
+        content="Agentic Search"
         isOpen={mobileTooltipTargetId === 'agentic-button'} 
         place="top"
         style={{zIndex: 1002}} 
