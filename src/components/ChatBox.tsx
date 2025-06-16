@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef, CSSProperties as ReactCSSProperties } from 'react';
-import { LuPaperclip, LuGlobe, LuLightbulb, LuSquarePen, LuSparkles, LuMaximize2, LuMinimize2, LuVideo, LuMic, LuSend, LuSearch, LuTrash2, LuCopy, LuCheck, LuThumbsUp, LuThumbsDown, LuRefreshCw } from 'react-icons/lu';
+import React, { useState, useEffect, useRef, CSSProperties as ReactCSSProperties, useMemo } from 'react';
+import { LuPaperclip, LuGlobe, LuZap, LuSquarePen, LuSparkles, LuMaximize2, LuMinimize2, LuVideo, LuMic, LuSend, LuSearch, LuTrash2, LuCopy, LuCheck, LuThumbsUp, LuThumbsDown, LuRefreshCw } from 'react-icons/lu';
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,6 +19,7 @@ import {
 } from '../utils/GeminiHandler';
 import { convertChatMessagesToHistory, ConversationHistory, generateConversationId } from '../utils/HistoryManager';
 import LoginModal from './LoginModal';
+import { saveThought, loadThoughts } from '../utils/ThoughtStore';
 
 // ChatMessage interface
 interface ChatMessage {
@@ -33,6 +34,8 @@ interface ChatMessage {
   fileInfo?: { name: string; type: string; size: number };
   images?: { data: string; type: string; name: string }[];
   thinkDuration?: number;
+  isStreaming?: boolean;
+  thoughtSummary?: string;
 }
 
 // Add props interface for ChatBox
@@ -40,11 +43,56 @@ interface ChatBoxProps {
   initialConversation?: ConversationHistory | null;
 }
 
+// Animated button text that re-types with fade-in while preserving button width
+const AnimatedButtonText: React.FC<{ text: string; isActive: boolean }> = ({ text, isActive }) => {
+  const characters = useMemo(() => text.split(''), [text]);
+  const [visibleCount, setVisibleCount] = useState<number>(isActive ? 0 : characters.length);
+
+  useEffect(() => {
+    if (!isActive) {
+      setVisibleCount(characters.length);
+      return;
+    }
+
+    setVisibleCount(0); // restart typing effect
+    let index = 0;
+    const timer = setInterval(() => {
+      index += 1;
+      setVisibleCount(index);
+      if (index >= characters.length) {
+        clearInterval(timer);
+      }
+    }, 40); // speed per character
+
+    return () => clearInterval(timer);
+  }, [isActive, characters.length]);
+
+  return (
+    <span className="relative inline-block ml-2 text-sm hidden sm:inline" style={{ color: 'var(--foreground)' }}>
+      {/* Invisible placeholder keeps width constant */}
+      <span className="opacity-0 select-none pointer-events-none">{text}</span>
+
+      {/* Streaming overlay */}
+      <span className="absolute inset-0 flex">
+        {characters.slice(0, visibleCount).map((char, idx) => (
+          <span
+            key={idx}
+            className="streaming-word"
+            style={{ animationDelay: `${idx * 40}ms` }}
+          >
+            {char === ' ' ? '\u00A0' : char}
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+};
+
 const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
   // Add theme context and router
   const router = useRouter();
   const { resolvedTheme } = useTheme();
-  const [isSearchToggled, setIsSearchToggled] = useState(false);
+  const [isSearchToggled, setIsSearchToggled] = useState(true);
   const [isReasonToggled, setIsReasonToggled] = useState(false);
   const [isAgenticResearchToggled, setIsAgenticResearchToggled] = useState(false);
   const [textareaValue, setTextareaValue] = useState('');
@@ -78,6 +126,11 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
   const { user, loggedIn, loading: authLoading } = useAuth();
   const { isIncognitoMode } = useIncognito();
   const [userDisplayName, setUserDisplayName] = useState<string>("Loading...");
+
+  // Red highlight color for active toggles (replaces previous blue accent)
+  const highlightColor = '#b30000';
+  const highlightHover = '#c40000';
+  const highlightForeground = '#ffffff';
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -115,6 +168,15 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
       setConversationId(generateConversationId());
     }
   }, [initialConversation]);
+
+  // Load stored thoughts when conversationId changes
+  useEffect(() => {
+    if (!conversationId) return;
+    const stored = loadThoughts(conversationId);
+    if (Object.keys(stored).length > 0) {
+      setMessages(prev => prev.map(m => stored[m.id] ? { ...m, thoughtSummary: stored[m.id] } : m ));
+    }
+  }, [conversationId]);
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -422,7 +484,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
     setMessages(messagesCopy); // Remove the AI message
     
     // Get thinking budget - explicitly set to 0 if reason is off
-    const thinkingBudget = isReasonToggled ? 8192 : 0;
+    const thinkingBudget = isReasonToggled ? 0 : 8192;
     console.log(`Using thinking budget: ${thinkingBudget} (Reason: ${isReasonToggled ? 'ON' : 'OFF'})`);
     console.log(`Search mode: ${isSearchToggled ? 'ON' : 'OFF'}`);
     
@@ -434,8 +496,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
       isUser: false,
       timestamp: new Date(),
       isThinking: true,
-      isReasoning: isReasonToggled,
-      isSearching: isSearchToggled
+      isReasoning: !isReasonToggled,
+      isSearching: isSearchToggled,
+      isStreaming: true,
     };
     
     setMessages(prev => [...prev, aiResponseMessage]);
@@ -455,12 +518,22 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
             const responseIndex = updatedMessages.findIndex(m => m.id === aiResponseId);
             
             if (responseIndex !== -1) {
-              // Update existing message with accumulated text and remove thinking state
-              updatedMessages[responseIndex] = {
-                ...updatedMessages[responseIndex],
-                text: updatedMessages[responseIndex].text + chunk,
-                isThinking: false
-              };
+              if (chunk.startsWith('__THOUGHT__')) {
+                const thought = chunk.replace('__THOUGHT__', '');
+                const newSummary = (updatedMessages[responseIndex].thoughtSummary || '') + thought;
+                updatedMessages[responseIndex] = {
+                  ...updatedMessages[responseIndex],
+                  thoughtSummary: newSummary
+                };
+                if (conversationId) saveThought(conversationId, updatedMessages[responseIndex].id, newSummary);
+              } else {
+                // Update existing message with answer text and done thinking
+                updatedMessages[responseIndex] = {
+                  ...updatedMessages[responseIndex],
+                  text: updatedMessages[responseIndex].text + chunk,
+                  isThinking: false
+                };
+              }
             }
             
             return updatedMessages;
@@ -469,6 +542,16 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
         thinkingBudget,
         isSearchToggled // Pass search toggle state
       );
+
+      // Mark streaming as finished
+      setMessages(prev => {
+        const updated = [...prev];
+        const idx = updated.findIndex(m => m.id === aiResponseId);
+        if (idx !== -1) {
+          updated[idx] = { ...updated[idx], isStreaming: false };
+        }
+        return updated;
+      });
     } catch (error) {
       console.error('Error getting Gemini response:', error);
       // Handle error case (already handled in the stream function)
@@ -531,6 +614,44 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
     }
   };
 
+  // Handle pasting images directly into the textarea
+  const handleTextareaPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+
+    const validImageTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/heic', 'image/heif'];
+
+    Array.from(items).forEach(item => {
+      if (item.kind === 'file') {
+        const file = item.getAsFile();
+        if (!file) return;
+
+        if (!validImageTypes.includes(file.type)) return;
+
+        if (attachedImages.length >= 10) {
+          alert('You can only attach up to 10 images at once.');
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const result = e.target?.result as string;
+          if (result) {
+            setAttachedImages(prev => [
+              ...prev,
+              {
+                data: result,
+                type: file.type,
+                name: file.name || `pasted-${Date.now()}`
+              }
+            ]);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  };
+
   // Update handleSendMessage to include attached images
   const handleSendMessage = async () => {
     if (textareaValue.trim() === '' && attachedImages.length === 0) return;
@@ -542,7 +663,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
     }
     
     // Get thinking budget - explicitly set to 0 if reason is off
-    const thinkingBudget = isReasonToggled ? 8192 : 0;
+    const thinkingBudget = isReasonToggled ? 0 : 8192;
     console.log(`Using thinking budget: ${thinkingBudget} (Reason: ${isReasonToggled ? 'ON' : 'OFF'})`);
     console.log(`Search mode: ${isSearchToggled ? 'ON' : 'OFF'}`);
     
@@ -573,8 +694,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
         isUser: false,
         timestamp: new Date(),
         isThinking: true,
-        isReasoning: isReasonToggled,
-        isSearching: isSearchToggled
+        isReasoning: !isReasonToggled,
+        isSearching: isSearchToggled,
+        isStreaming: true,
       };
       
       setMessages(prevMessages => [...prevMessages, aiResponseMessage]);
@@ -600,12 +722,22 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
               const responseIndex = currentMessages.findIndex(m => m.id === aiResponseId);
               
               if (responseIndex !== -1) {
-                // Update existing message with accumulated text and remove thinking state
-                currentMessages[responseIndex] = {
-                  ...currentMessages[responseIndex],
-                  text: currentMessages[responseIndex].text + chunk,
-                  isThinking: false
-                };
+                if (chunk.startsWith('__THOUGHT__')) {
+                  const thought = chunk.replace('__THOUGHT__', '');
+                  const newSummary = (currentMessages[responseIndex].thoughtSummary || '') + thought;
+                  currentMessages[responseIndex] = {
+                    ...currentMessages[responseIndex],
+                    thoughtSummary: newSummary
+                  };
+                  if (conversationId) saveThought(conversationId, currentMessages[responseIndex].id, newSummary);
+                } else {
+                  // Update existing message with answer text and done thinking
+                  currentMessages[responseIndex] = {
+                    ...currentMessages[responseIndex],
+                    text: currentMessages[responseIndex].text + chunk,
+                    isThinking: false
+                  };
+                }
               }
               
               return currentMessages;
@@ -615,6 +747,16 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
           isSearchToggled, // Pass search toggle state
           updatedMessages[editIndex].images // Pass attached images
         );
+
+        // Mark streaming as finished
+        setMessages(prev => {
+          const updated = [...prev];
+          const idx = updated.findIndex(m => m.id === aiResponseId);
+          if (idx !== -1) {
+            updated[idx] = { ...updated[idx], isStreaming: false };
+          }
+          return updated;
+        });
       } catch (error) {
         console.error('Error getting Gemini response:', error);
         // Error handling is done within the stream function
@@ -654,8 +796,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
       isUser: false,
       timestamp: new Date(),
       isThinking: true,
-      isReasoning: isReasonToggled,
-      isSearching: isSearchToggled
+      isReasoning: !isReasonToggled,
+      isSearching: isSearchToggled,
+      isStreaming: true,
     };
     
     setMessages(prevMessages => [...prevMessages, aiResponseMessage]);
@@ -675,12 +818,22 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
             const responseIndex = currentMessages.findIndex(m => m.id === aiResponseId);
             
             if (responseIndex !== -1) {
-              // Update existing message with accumulated text and remove thinking state
-              currentMessages[responseIndex] = {
-                ...currentMessages[responseIndex],
-                text: currentMessages[responseIndex].text + chunk,
-                isThinking: false
-              };
+              if (chunk.startsWith('__THOUGHT__')) {
+                const thought = chunk.replace('__THOUGHT__', '');
+                const newSummary = (currentMessages[responseIndex].thoughtSummary || '') + thought;
+                currentMessages[responseIndex] = {
+                  ...currentMessages[responseIndex],
+                  thoughtSummary: newSummary
+                };
+                if (conversationId) saveThought(conversationId, currentMessages[responseIndex].id, newSummary);
+              } else {
+                // Update existing message with answer text and done thinking
+                currentMessages[responseIndex] = {
+                  ...currentMessages[responseIndex],
+                  text: currentMessages[responseIndex].text + chunk,
+                  isThinking: false
+                };
+              }
             }
             
             return currentMessages;
@@ -690,6 +843,16 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
         isSearchToggled, // Pass search toggle state
         attachedImages.length > 0 ? newUserMessage.images : undefined // Pass attached images
       );
+
+      // Mark streaming as finished
+      setMessages(prev => {
+        const updated = [...prev];
+        const idx = updated.findIndex(m => m.id === aiResponseId);
+        if (idx !== -1) {
+          updated[idx] = { ...updated[idx], isStreaming: false };
+        }
+        return updated;
+      });
     } catch (error) {
       console.error('Error getting Gemini response:', error);
       // Error handling is done within the stream function
@@ -817,7 +980,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
               }} 
               className="text-2xl"
             >
-              Hello,{' '}
+              Hi,{' '}
               <span style={shimmerTextStyle}>
                 {userDisplayName}
               </span>
@@ -832,7 +995,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
               }} 
               className="text-2xl"
             >
-              How can I help you today?
+              What can I help you with?
             </div>
           </div>
         )}
@@ -912,15 +1075,16 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
               <textarea
                 className="w-full p-4 focus:outline-none resize-none bg-transparent pr-24 placeholder-theme"
                 rows={isTextareaExpanded ? 8 : 1}
-                placeholder={isEditingMessage ? "Edit your message..." : (isIncognitoMode ? "Ask me privately..." : "Ask me anything...")}
+                placeholder={isEditingMessage ? "Edit pesan..." : (isIncognitoMode ? "Incognito mode..." : "Ask me anything...")}
                 value={textareaValue}
                 onChange={(e) => setTextareaValue(e.target.value)}
                 onKeyDown={handleTextareaKeyDown}
+                onPaste={handleTextareaPaste}
                 onFocus={() => setIsTextareaFocused(true)}
                 onBlur={() => setIsTextareaFocused(false)}
                 style={{ 
                   color: 'var(--foreground)', 
-                  caretColor: 'var(--primary)',
+                  caretColor: highlightColor,
                   backgroundColor: 'transparent'
                 }}
               />
@@ -929,14 +1093,14 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
                   <button
                     id="video-input-button"
                     type="button"
-                    style={commonBlackButtonStyle}
+                    style={{ ...commonBlackButtonStyle, backgroundColor: highlightColor }}
                     aria-label="Start video input"
                     data-tooltip-id="chatbox-tooltip"
                     data-tooltip-content="Start video input"
                     data-tooltip-place="top"
                     onClick={() => router.push('/multimodal')}
-                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary-hover)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = highlightHover; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = highlightColor; e.currentTarget.style.transform = 'translateY(0)'; }}
                     onTouchStart={isMobile ? (e) => handleMobileItemTouchStart(e, 'video-input-button') : undefined}
                     onTouchEnd={isMobile ? () => handleMobileItemTouchEnd('video-input-button') : undefined}
                     onTouchMove={isMobile ? handleMobileItemTouchMove : undefined}
@@ -944,25 +1108,27 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
                     <LuVideo style={{ width: '1.25rem', height: '1.25rem', color: 'var(--primary-foreground)' }} />
                   </button>
                 )}
-                <button
+                <motion.button
                   id="send-button"
                   type="button"
-                  style={commonBlackButtonStyle}
+                  style={{ ...commonBlackButtonStyle, backgroundColor: highlightColor }}
                   aria-label="Send"
                   data-tooltip-id="chatbox-tooltip"
                   data-tooltip-content={isEditingMessage ? "Update message" : "Send Message"}
                   data-tooltip-place="top"
                   onClick={handleSendMessage}
-                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary-hover)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = highlightHover; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = highlightColor; e.currentTarget.style.transform = 'translateY(0)'; }}
                   onTouchStart={isMobile ? (e) => handleMobileItemTouchStart(e, 'send-button') : undefined}
                   onTouchEnd={isMobile ? () => handleMobileItemTouchEnd('send-button') : undefined}
                   onTouchMove={isMobile ? handleMobileItemTouchMove : undefined}
+                  animate={{ boxShadow: ['0 0 0px rgba(179,0,0,0.4)', '0 0 14px rgba(179,0,0,0.9)', '0 0 0px rgba(179,0,0,0.4)'] }}
+                  transition={{ duration: 2, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' }}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="white" style={{ width: '1.25rem', height: '1.25rem' }}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-6 6m6-6l6 6" />
                   </svg>
-                </button>
+                </motion.button>
               </div>
               <div className="w-full p-4 flex items-center space-x-2">
                 <button
@@ -1014,7 +1180,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
                 >
                   <LuPaperclip style={inputIconStyle} />
                 </button>
-                <button
+                <motion.button
                   id="search-button"
                   type="button"
                   onClick={handleSearchToggle}
@@ -1027,67 +1193,71 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
                   data-tooltip-content="Browse the web"
                   data-tooltip-place="top"
                   style={{ 
-                    backgroundColor: searchDisabled ? 'var(--secondary)' : (isSearchToggled ? 'var(--accent)' : 'var(--background-secondary)'), 
+                    backgroundColor: searchDisabled ? 'var(--secondary)' : 'var(--background-secondary)', 
                     borderWidth: 1,
                     borderStyle: 'solid',
-                    borderColor: searchDisabled ? 'var(--border)' : (isSearchToggled ? 'var(--accent-foreground)' : 'var(--border)'),
-                    color: searchDisabled ? 'var(--foreground-secondary)' : (isSearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')
+                    borderColor: searchDisabled ? 'var(--border)' : (isSearchToggled ? highlightColor : 'var(--border)'),
+                    color: searchDisabled ? 'var(--foreground-secondary)' : (isSearchToggled ? highlightColor : 'var(--foreground-secondary)')
                   }}
-                  onMouseEnter={(e) => !searchDisabled && (e.currentTarget.style.backgroundColor = isSearchToggled ? 'var(--accent)' : 'var(--secondary)')}
-                  onMouseLeave={(e) => !searchDisabled && (e.currentTarget.style.backgroundColor = isSearchToggled ? 'var(--accent)' : 'var(--background-secondary)')}
+                  onMouseEnter={(e) => !searchDisabled && (e.currentTarget.style.backgroundColor = 'var(--secondary)')}
+                  onMouseLeave={(e) => !searchDisabled && (e.currentTarget.style.backgroundColor = 'var(--background-secondary)')}
                   onTouchStart={!searchDisabled && isMobile ? (e) => handleMobileItemTouchStart(e, 'search-button') : undefined}
                   onTouchEnd={!searchDisabled && isMobile ? () => handleMobileItemTouchEnd('search-button') : undefined}
                   onTouchMove={!searchDisabled && isMobile ? handleMobileItemTouchMove : undefined}
+                  animate={isSearchToggled && !searchDisabled ? { boxShadow: ['0 0 0px rgba(179,0,0,0.4)', '0 0 12px rgba(179,0,0,0.9)', '0 0 0px rgba(179,0,0,0.4)'] } : undefined}
+                  transition={isSearchToggled && !searchDisabled ? { duration: 2, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' } : undefined}
                 >
-                  <LuGlobe style={{...inputIconStyle, color: searchDisabled ? 'var(--foreground-secondary)' : (isSearchToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')}} />
-                  <span style={{ color: 'var(--foreground)' }} className={`hidden sm:inline ml-2 text-sm`}>Search</span>
-                </button>
-                <button
+                  <LuGlobe style={{...inputIconStyle, color: searchDisabled ? 'var(--foreground-secondary)' : (isSearchToggled ? highlightColor : 'var(--foreground-secondary)')}} />
+                  <AnimatedButtonText text="Search" isActive={isSearchToggled && !searchDisabled} />
+                </motion.button>
+                <motion.button
                   id="reason-button"
                   type="button"
                   onClick={handleReasonToggle}
                   disabled={reasonDisabled}
                   className={`p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center active:scale-95 ${reasonDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                  aria-label="Reason"
+                  aria-label="Instant"
                   data-tooltip-id="chatbox-tooltip"
-                  data-tooltip-content="Think before responding"
+                  data-tooltip-content="Instant response (reducing accuracy)"
                   data-tooltip-place="top"
                   style={{ 
-                    backgroundColor: reasonDisabled ? 'var(--secondary)' : (isReasonToggled ? 'var(--accent)' : 'var(--background-secondary)'), 
+                    backgroundColor: reasonDisabled ? 'var(--secondary)' : 'var(--background-secondary)', 
                     borderWidth: 1,
                     borderStyle: 'solid',
-                    borderColor: reasonDisabled ? 'var(--border)' : (isReasonToggled ? 'var(--accent-foreground)' : 'var(--border)'),
-                    color: reasonDisabled ? 'var(--foreground-secondary)' : (isReasonToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')
+                    borderColor: reasonDisabled ? 'var(--border)' : (isReasonToggled ? highlightColor : 'var(--border)'),
+                    color: reasonDisabled ? 'var(--foreground-secondary)' : (isReasonToggled ? highlightColor : 'var(--foreground-secondary)')
                   }}
-                  onMouseEnter={(e) => !reasonDisabled && (e.currentTarget.style.backgroundColor = isReasonToggled ? 'var(--accent)' : 'var(--secondary)')}
-                  onMouseLeave={(e) => !reasonDisabled && (e.currentTarget.style.backgroundColor = isReasonToggled ? 'var(--accent)' : 'var(--background-secondary)')}
+                  onMouseEnter={(e) => !reasonDisabled && (e.currentTarget.style.backgroundColor = 'var(--secondary)')}
+                  onMouseLeave={(e) => !reasonDisabled && (e.currentTarget.style.backgroundColor = 'var(--background-secondary)')}
                   onTouchStart={!reasonDisabled && isMobile ? (e) => handleMobileItemTouchStart(e, 'reason-button') : undefined}
                   onTouchEnd={!reasonDisabled && isMobile ? () => handleMobileItemTouchEnd('reason-button') : undefined}
                   onTouchMove={!reasonDisabled && isMobile ? handleMobileItemTouchMove : undefined}
+                  animate={isReasonToggled && !reasonDisabled ? { boxShadow: ['0 0 0px rgba(179,0,0,0.4)', '0 0 12px rgba(179,0,0,0.9)', '0 0 0px rgba(179,0,0,0.4)'] } : undefined}
+                  transition={isReasonToggled && !reasonDisabled ? { duration: 2, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' } : undefined}
                 >
-                  <LuLightbulb style={{...inputIconStyle, color: reasonDisabled ? 'var(--foreground-secondary)' : (isReasonToggled ? 'var(--accent-foreground)' : 'var(--foreground-secondary)')}} />
-                  <span style={{ color: 'var(--foreground)' }} className={`hidden sm:inline ml-2 text-sm`}>Reason</span>
-                </button>
+                  <LuZap style={{...inputIconStyle, color: reasonDisabled ? 'var(--foreground-secondary)' : (isReasonToggled ? highlightColor : 'var(--foreground-secondary)')}} />
+                  <AnimatedButtonText text="Instant" isActive={isReasonToggled && !reasonDisabled} />
+                </motion.button>
                 <button
                   id="agentic-button"
                   type="button"
                   onClick={handleAgenticResearchToggle}
-                  disabled={true}
-                  className="p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center opacity-50 cursor-not-allowed"
-                  aria-label="Agentic Search"
+                  disabled={agenticResearchDisabled}
+                  className={`p-2 sm:px-4 sm:py-2 rounded-full transition-colors transition-transform duration-200 flex items-center ${agenticResearchDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}
+                  aria-label="Agent"
                   data-tooltip-id="chatbox-tooltip"
-                  data-tooltip-content="COMING SOON"
+                  data-tooltip-content="Agent"
                   data-tooltip-place="top"
                   style={{ 
-                    backgroundColor: 'var(--secondary)', 
+                    backgroundColor: agenticResearchDisabled ? 'var(--secondary)' : 'var(--background-secondary)', 
                     borderWidth: 1,
                     borderStyle: 'solid',
-                    borderColor: 'var(--border)',
-                    color: 'var(--foreground-secondary)'
+                    borderColor: agenticResearchDisabled ? 'var(--border)' : (isAgenticResearchToggled ? highlightColor : 'var(--border)'),
+                    color: agenticResearchDisabled ? 'var(--foreground-secondary)' : (isAgenticResearchToggled ? highlightColor : 'var(--foreground-secondary)')
                   }}
                 >
-                  <LuSparkles style={{...inputIconStyle, color: 'var(--foreground-secondary)'}} />
-                  <span style={{ color: 'var(--foreground)' }} className={`hidden sm:inline ml-2 text-sm`}>Agentic Search</span>
+                  <LuSparkles style={{...inputIconStyle, color: agenticResearchDisabled ? 'var(--foreground-secondary)' : (isAgenticResearchToggled ? highlightColor : 'var(--foreground-secondary)')}} />
+                  <AnimatedButtonText text="Agent" isActive={isAgenticResearchToggled && !agenticResearchDisabled} />
                 </button>
               </div>
             </div>
@@ -1139,14 +1309,14 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
       />
       <Tooltip 
         anchorSelect="#reason-button" 
-        content="Think before responding" 
+        content="Instant response" 
         isOpen={mobileTooltipTargetId === 'reason-button'} 
         place="top"
         style={{zIndex: 1002}} 
       />
       <Tooltip 
         anchorSelect="#agentic-button" 
-        content="COMING SOON" 
+        content="Agent" 
         isOpen={mobileTooltipTargetId === 'agentic-button'} 
         place="top"
         style={{zIndex: 1002}} 

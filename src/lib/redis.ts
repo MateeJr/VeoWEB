@@ -17,8 +17,8 @@ export interface ChatMessage {
 
 // Initialize Redis client with provided credentials
 export const redis = new Redis({
-  url: "https://allowed-martin-10176.upstash.io",
-  token: "ASfAAAIjcDE5MjdmY2M3ZjFlMzk0YzQzYjEzMzRjY2E3ZTdlNmFhMHAxMA"
+  url: "https://selected-mule-26397.upstash.io",
+  token: "AWcdAAIjcDE1NWJjOTM2YjllNTY0MWNmOTdiNmJmZWMwMGZiNzUzMXAxMA"
 });
 
 // === CHAT HISTORY FUNCTIONS ===

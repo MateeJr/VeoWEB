@@ -180,3 +180,25 @@ html, body {
 }
 
 /* You can add your global styles here */
+
+/* ------------------------------------------------------------------
+   Streaming word animation for AI responses
+   ------------------------------------------------------------------ */
+@keyframes streamingFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.streaming-word {
+  opacity: 0;
+  animation-name: streamingFadeIn;
+  animation-duration: 0.25s;
+  animation-fill-mode: forwards;
+  /* Individual animationDelay is set inline from React for a cascading effect */
+}

@@ -336,7 +336,7 @@ const Header = () => {
           {hasMounted && (
             <img 
               src="/main_full.png" 
-              alt="VEO Logo" 
+              alt="Veo Logo" 
               style={{ 
                 width: '50px', 
                 height: '50px', 
@@ -368,9 +368,9 @@ const Header = () => {
               onMouseLeave={(e) => { // Reset if mouse leaves while pressed
                 e.currentTarget.style.transform = 'scale(1)';
               }}
-              onClick={handleNewChat} // Add click handler to VEO text
+              onClick={handleNewChat} // Add click handler to Veo text
             >
-              VEO
+              Veo
             </button>
           )}
         </div>

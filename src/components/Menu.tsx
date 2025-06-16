@@ -1249,7 +1249,7 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
           Appearance
         </h2>
         <p style={{ marginBottom: '1.5rem', fontSize: '0.9375rem', color: 'var(--foreground-secondary)' }}>
-          Customize how VEO looks on your device.
+          Customize how Veo looks on your device.
         </p>
 
         <ThemeOption
@@ -1295,7 +1295,7 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
           color: 'var(--foreground)',
           textAlign: 'center' 
         }}>
-          About VEO
+          About Veo
         </h2>
         
         <div style={{ 
@@ -1314,7 +1314,7 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
           }}>
             <img 
               src="/main_full.png" 
-              alt="VEO Logo" 
+              alt="Veo Logo" 
               style={{ 
                 width: '80px', 
                 height: '80px',
@@ -1330,7 +1330,7 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
             color: 'var(--foreground)',
             textAlign: 'center' 
           }}>
-            VEO 1.0
+            Veo Mark II
           </h3>
           
           <p style={{ 
@@ -1340,7 +1340,7 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
             fontSize: '0.95rem',
             textAlign: 'center'
           }}>
-            VEO is an advanced AI assistant designed to enhance your productivity and simplify everyday tasks.
+            Veo is an advanced AI assistant designed to enhance your productivity and simplify everyday tasks.
           </p>
           
           <div style={{
@@ -1368,9 +1368,9 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
                 color: 'var(--foreground-secondary)',
                 lineHeight: '1.5'
               }}>
-                Powered by the latest LLM architecture, VEO excels at answering questions, 
+                Powered by the latest LLM architecture, Veo excels at answering questions, 
                 fact-checking, providing news updates, and assisting with research. With a 
-                200,000 token context window, VEO maintains detailed conversations and handles 
+                Hybrid Reasoning Mode, Veo maintains detailed conversations and handles 
                 complex topics with ease.
               </p>
             </div>
@@ -1394,7 +1394,7 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
                 color: 'var(--foreground-secondary)',
                 lineHeight: '1.5'
               }}>
-                VEO was created to be your reliable companion for learning, information retrieval, 
+                Veo was created to be your reliable companion for learning, information retrieval, 
                 creative assistance, and productivity enhancement. From answering simple questions 
                 to helping with complex projects.
               </p>
@@ -1411,9 +1411,9 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
             gap: '0.5rem',
             alignItems: 'center'
           }}>
-            <p style={{ margin: 0 }}>Version 1.0 - 20 May 2025</p>
+            <p style={{ margin: 0 }}>Mark II - 15 June 2025</p>
             <p style={{ margin: 0 }}>Created by professional_idiot_25</p>
-            <p style={{ margin: 0, fontSize: '0.75rem' }}>© 2025 VEO AI Assistant</p>
+            <p style={{ margin: 0, fontSize: '0.75rem' }}>© 2025 Veo AI Assistant</p>
           </div>
         </div>
       </div>
@@ -1518,7 +1518,7 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
           Data Controls
         </h2>
         <p style={{ marginBottom: '1.5rem', fontSize: '0.9375rem', color: 'var(--foreground-secondary)' }}>
-          Manage how your data is used within VEO. {!userLoggedIn && "Log in to save these preferences across devices."}
+          Manage how your data is used within Veo. {!userLoggedIn && "Log in to save these preferences across devices."}
         </p>
 
         {isLoadingProfile ? (
@@ -1560,7 +1560,7 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
               }}
               icon={<LuActivity />}
               label="Allow telemetry logging"
-              description="Help us improve VEO by allowing us to collect anonymous usage data. This information helps us understand how our features are being used and identify areas for improvement."
+              description="Help us improve Veo by allowing us to collect anonymous usage data. This information helps us understand how our features are being used and identify areas for improvement."
               disabled={isUpdatingSettings || !userLoggedIn}
             />
             
@@ -1630,7 +1630,7 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
           color: 'var(--foreground-secondary)',
           marginBottom: '2rem'
         }}>
-          I'm still working on customization features to make VEO truly personalized for you.
+          I'm still working on customization features to make Veo truly personalized for you.
           Stay tuned for personalization options in a future update.
         </p>
         
@@ -1661,9 +1661,82 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
           color: 'var(--foreground)',
           textAlign: 'center' 
         }}>
-          VEO Changelog
+          Veo Changelog
         </h2>
         
+        <div style={{ 
+          backgroundColor: 'var(--card-background)', 
+          border: '1px solid var(--card-border)',
+          borderRadius: '0.75rem',
+          padding: '1.5rem',
+          marginBottom: '1.5rem',
+          boxShadow: 'var(--shadow-md)'
+        }}>
+          {/* --- New Release 15 June 2025 --- */}
+          <div style={{ 
+            display: 'flex',
+            alignItems: 'center',
+            marginBottom: '1rem',
+            borderBottom: '1px solid var(--border)',
+            paddingBottom: '0.75rem'
+          }}>
+            <div style={{
+              backgroundColor: 'var(--primary)',
+              color: 'var(--primary-foreground)',
+              borderRadius: '0.5rem',
+              padding: '0.375rem 0.75rem',
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              marginRight: '1rem'
+            }}>
+              v1.1.0
+            </div>
+            <div style={{
+              fontSize: '0.9375rem',
+              color: 'var(--foreground-secondary)',
+              fontWeight: '500'
+            }}>
+              15 June 2025
+            </div>
+          </div>
+          <h3 style={{
+            fontSize: '1.125rem',
+            fontWeight: '600',
+            marginBottom: '1rem',
+            color: 'var(--foreground)'
+          }}>
+            🚀 Paid Tier & Instant Mode
+          </h3>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem'
+          }}>
+            <div>
+              <h4 style={{
+                fontSize: '1rem',
+                fontWeight: '600',
+                marginBottom: '0.5rem',
+                color: 'var(--foreground)'
+              }}>
+                Highlights:
+              </h4>
+              <ul style={{
+                marginLeft: '1.5rem',
+                color: 'var(--foreground-secondary)',
+                fontSize: '0.9375rem',
+                lineHeight: '1.6'
+              }}>
+                <li>Paid tier pricing released</li>
+                <li>Upgrade to smarter Veo model</li>
+                <li>New <strong>Instant</strong> mode toggle ⚡ for quick replies</li>
+                <li>Automatic thinking before response (when Instant off)</li>
+                <li>Paste images directly into the textbox</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        {/* Existing first release card */}
         <div style={{ 
           backgroundColor: 'var(--card-background)', 
           border: '1px solid var(--card-border)',
@@ -1698,14 +1771,13 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
               20 May 2025
             </div>
           </div>
-          
           <h3 style={{
             fontSize: '1.125rem',
             fontWeight: '600',
             marginBottom: '1rem',
             color: 'var(--foreground)'
           }}>
-            🎉 First Release of VEO!
+            🎉 First Release of Veo!
           </h3>
           
           <div style={{
@@ -1728,7 +1800,7 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
                 fontSize: '0.9375rem',
                 lineHeight: '1.6'
               }}>
-                <li>Advanced AI assistant capabilities with 200,000 token context window</li>
+                <li>Advanced AI assistant capabilities with reasoning</li>
                 <li>Cross-platform support for desktop and mobile devices</li>
                 <li>Real-time information lookup and fact-checking</li>
                 <li>User accounts with secure authentication</li>
@@ -1767,7 +1839,7 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onClose, isSmallScreen, initialTab 
             color: 'var(--foreground-secondary)',
             fontStyle: 'italic'
           }}>
-            Thank you for being part of our initial release! We're committed to continuously improving VEO with regular updates.
+            ~Vallian
           </div>
         </div>
       </div>

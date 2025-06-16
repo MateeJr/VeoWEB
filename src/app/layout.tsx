@@ -7,8 +7,8 @@ import MainLayoutClient from "@/components/MainLayoutClient"; // To be created
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "VEO | AI For Us",
-  description: "VEO | AI For Us",
+  title: "Veo | AI",
+  description: "Veo - AI Assistant",
   icons: {
     icon: '/main_full.png', // Path to the icon in the public directory
   },

@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
-import { Copy, Edit, RefreshCw, Check, WrapText, ArrowLeftRight, Save, Trash } from 'lucide-react';
+import { Copy, Edit, RefreshCw, Check, WrapText, ArrowLeftRight, Save, Trash, ChevronDown, ChevronRight } from 'lucide-react';
 import Marked from 'marked-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight, oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -15,6 +15,8 @@ import {
   generateConversationTitle,
   ConversationHistory 
 } from '../utils/HistoryManager';
+import StreamingText from './StreamingText';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Chat message interface (same as in ChatBox)
 interface ChatMessage {
@@ -25,11 +27,13 @@ interface ChatMessage {
   isThinking?: boolean;
   isReasoning?: boolean; // Add flag to indicate if reason mode is on
   isSearching?: boolean; // Add flag to indicate if search mode is on
+  isStreaming?: boolean; // Add flag to indicate if the message is actively streaming
   type?: 'text' | 'image' | 'file';
   fileInfo?: { name: string; type: string; size: number };
   images?: { data: string; type: string; name: string }[]; // Add images property
   thinkStartTime?: number; // Add timestamp for when thinking started
   thinkDuration?: number; // Add duration of thinking in milliseconds
+  thoughtSummary?: string; // Add thoughtSummary property
 }
 
 interface ChatAreaProps {
@@ -98,6 +102,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean | null>(null);
   const [thinkingMessages, setThinkingMessages] = useState<{[id: string]: number}>({});
+  const [expandedThoughts, setExpandedThoughts] = useState<{[id: string]: boolean}>({});
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -735,6 +740,18 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     );
   };
 
+  // Extract latest header (**Title**) from thought summary
+  const getLatestThoughtHeader = (summary?: string): string | null => {
+    if (!summary) return null;
+    const regex = /\*\*(.*?)\*\*/g;
+    let match: RegExpExecArray | null;
+    let last: string | null = null;
+    while ((match = regex.exec(summary)) !== null) {
+      last = match[1];
+    }
+    return last;
+  };
+
   if (!isVisible || messages.length === 0) {
     return null;
   }
@@ -755,7 +772,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                 <div
                   className="max-w-[80%] md:max-w-[70%] p-3 rounded-2xl rounded-tr-none text-white"
                   style={{
-                    backgroundColor: '#464646',
+                    backgroundColor: '#1a1a1a',
                     position: 'relative'
                   }}
                 >
@@ -817,32 +834,82 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                 >
                   {message.isThinking ? (
                     <div className="flex flex-col items-center justify-center py-2">
-                      {message.isSearching && message.isReasoning ? (
-                        <span className="shimmer-text text-lg font-medium">Searching and Thinking...</span>
-                      ) : message.isSearching ? (
-                        <span className="shimmer-text text-lg font-medium">Searching...</span>
-                      ) : message.isReasoning ? (
-                        <span className="shimmer-text text-lg font-medium">Thinking...</span>
-                      ) : (
-                        <div className="thinking-dots">
-                          <div className="thinking-dot dot-1" />
-                          <div className="thinking-dot dot-2" />
-                          <div className="thinking-dot dot-3" />
+                      {(() => {
+                        const latestHeader = getLatestThoughtHeader(message.thoughtSummary);
+                        if (message.isReasoning) {
+                          const displayText = latestHeader
+                            ? (message.isSearching ? `Thinking • ${latestHeader}` : latestHeader)
+                            : (message.isSearching ? 'Researching and Thinking...' : 'Thinking...');
+                          return (
+                            <motion.span
+                              key={displayText}
+                              initial={{ opacity: 0, y: 4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="shimmer-text text-lg"
+                            >
+                              {displayText}
+                            </motion.span>
+                          );
+                        }
+                        if (message.isSearching) {
+                          return <span className="shimmer-text text-lg">Searching...</span>;
+                        }
+                        return (
+                          <div className="thinking-dots">
+                            <div className="thinking-dot dot-1" />
+                            <div className="thinking-dot dot-2" />
+                            <div className="thinking-dot dot-3" />
+                          </div>
+                        );
+                      })()}
+                      {/* Thought details hidden until dropdown expanded */}
+                      {expandedThoughts[message.id] && message.thoughtSummary && (
+                        <div className="mt-2 text-xs text-foreground-secondary max-w-xs">
+                          <MarkdownRenderer content={message.thoughtSummary} />
                         </div>
                       )}
                     </div>
                   ) : (
                     <div className="whitespace-pre-wrap break-words">
                       {message.thinkDuration && message.isReasoning && (
-                        <div className="text-xs text-foreground-secondary mb-2 italic opacity-75">
-                          {formatThinkTime(message.thinkDuration)}
+                        <div className="mb-2">
+                          <button
+                            onClick={() => setExpandedThoughts(prev => ({ ...prev, [message.id]: !prev[message.id] }))}
+                            className="flex items-center gap-1 text-xs text-foreground-secondary italic opacity-75 transition-colors hover:text-foreground"
+                          >
+                            {expandedThoughts[message.id] ? (
+                              <ChevronDown className="w-3 h-3" />
+                            ) : (
+                              <ChevronRight className="w-3 h-3" />
+                            )}
+                            <span>{formatThinkTime(message.thinkDuration)}</span>
+                          </button>
+                          <AnimatePresence initial={false}>
+                            {expandedThoughts[message.id] && (
+                              <motion.div
+                                key="thoughts"
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="mt-2 ml-4 text-xs text-foreground-secondary whitespace-pre-wrap"
+                              >
+                                {message.thoughtSummary && <MarkdownRenderer content={message.thoughtSummary} />}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                       )}
                       {/* Display images if present */}
                       {message.images && message.images.length > 0 && (
                         <MessageImages images={message.images} />
                       )}
-                      <MarkdownRenderer content={message.text} />
+                      {message.isStreaming ? (
+                        <StreamingText text={message.text} isStreaming={true} />
+                      ) : (
+                        <MarkdownRenderer content={message.text} />
+                      )}
                     </div>
                   )}
                 </div>

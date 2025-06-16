@@ -3,7 +3,7 @@ import { MessageHistory } from './HistoryManager';
 
 // Initialize the Google GenAI client
 const API_KEY = "AIzaSyAr_OgUXQQVoR1I9kXRRiw21KbsuoEdwRg";
-const MODEL = "gemini-2.5-flash-preview-04-17";
+const MODEL = "gemini-2.5-flash-preview-05-20";
 
 // Initialize Gemini client
 const genAI = new GoogleGenerativeAI(API_KEY);
@@ -236,7 +236,8 @@ export async function processWithGeminiStream(
       topP: 0.95,
       maxOutputTokens: 8192,
       thinkingConfig: {
-        thinkingBudget: thinkingBudget
+        thinkingBudget: thinkingBudget,
+        includeThoughts: true
       }
     };
     
@@ -246,12 +247,20 @@ export async function processWithGeminiStream(
       generationConfig
     });
     
-    // Process the stream and invoke callback for each chunk
+    // Process the stream and separate thought summaries
     let fullResponse = "";
     for await (const chunk of result.stream) {
-      const chunkText = chunk.text();
-      fullResponse += chunkText;
-      onChunk(chunkText);
+      const chunkAny: any = chunk as any;
+      const parts = chunkAny?.candidates?.[0]?.content?.parts || [];
+      for (const part of parts) {
+        if (!part.text) continue;
+        if ((part as any).thought) {
+          onChunk(`__THOUGHT__${part.text}`);
+        } else {
+          onChunk(part.text);
+          fullResponse += part.text;
+        }
+      }
     }
     
     return fullResponse;
@@ -417,17 +426,23 @@ export async function processWithHistoryStream(
   images?: { data: string; type: string; name: string }[]
 ): Promise<string> {
   try {
-    if (!history || history.length === 0) {
-      console.log('No history provided, falling back to processWithGeminiStream');
-      return processWithGeminiStream(message, onChunk, thinkingBudget, images);
-    }
+    // Prepare history – if none is provided we'll simply continue without it so that
+    // the search toggle (enableSearch) is still respected for the very first user
+    // message of a conversation.  In this case `history` can be null/undefined or
+    // an empty array – treat both as an empty array to avoid unnecessary fallbacks
+    // that previously disabled search mode.
+    const safeHistory: MessageHistory[] = Array.isArray(history) ? history : [];
 
-    // Sort history by timestamp to ensure proper order
-    const sortedMessages = [...history].sort((a, b) => 
+    // Sort history by timestamp to ensure proper order (will be a no-op for empty history)
+    const sortedMessages = [...safeHistory].sort((a, b) =>
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
-    
+
     console.log(`Processing message with ${sortedMessages.length} previous messages for context (streaming)`);
+
+    // ----------------------------------------------
+    //  From here on we will use `sortedMessages` instead of the old variable.
+    // ----------------------------------------------
     
     // Create model options with googleSearch tool if search is enabled
     const modelOptions: any = {
@@ -540,12 +555,10 @@ export async function processWithHistoryStream(
       maxOutputTokens: 4096,
     };
     
-    // Add thinking config if needed
-    if (thinkingBudget > 0) {
-      generationConfig.thinkingConfig = {
-        thinkingBudget: thinkingBudget
-      };
-    }
+    generationConfig.thinkingConfig = {
+      thinkingBudget: thinkingBudget,
+      includeThoughts: true
+    };
     
     // Send to Gemini API with streaming
     const result = await model.generateContentStream({
@@ -553,12 +566,20 @@ export async function processWithHistoryStream(
       generationConfig
     });
     
-    // Process the stream and invoke callback for each chunk
+    // Process the stream and separate thought summaries
     let fullResponse = "";
     for await (const chunk of result.stream) {
-      const chunkText = chunk.text();
-      fullResponse += chunkText;
-      onChunk(chunkText);
+      const chunkAny: any = chunk as any;
+      const parts = chunkAny?.candidates?.[0]?.content?.parts || [];
+      for (const part of parts) {
+        if (!part.text) continue;
+        if ((part as any).thought) {
+          onChunk(`__THOUGHT__${part.text}`);
+        } else {
+          onChunk(part.text);
+          fullResponse += part.text;
+        }
+      }
     }
     
     return fullResponse;

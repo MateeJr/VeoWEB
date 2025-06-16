@@ -9,43 +9,51 @@ interface PricingTier {
   price: string;
   features: string[];
   highlight?: boolean;
+  originalPrice?: string;
+  discountPercent?: number;
 }
 
 const tiers: PricingTier[] = [
   {
     name: 'Basic',
-    price: 'Rp. 99.000',
+    price: 'Rp. 50.000/mo',
+    originalPrice: 'Rp. 70.000/mo',
+    discountPercent: 29,
     features: [
-      '32K context window',
-      'Search web',
+      '32K token memory',
+      'Web search',
       'Image generation',
-      'File uploads / analyzing',
+      'File upload / analysis',
       '500 messages per day',
     ],
   },
   {
     name: 'Intermediate',
-    price: 'Rp. 200.000',
+    price: 'Rp. 100.000/mo',
+    originalPrice: 'Rp. 150.000/mo',
+    discountPercent: 33,
     features: [
-      'Everything in Basic',
-      '128k context window',
-      'Agentic search (smartest)',
-      'Advanced Image Generation',
-      'Voice Mode',
-      'Smart AI Model',
+      'All Basic features',
+      '128K token memory',
+      'Agent search (smartest)',
+      'Advanced image generation',
+      'Voice mode',
+      'Smart AI model',
     ],
     highlight: true,
   },
   {
     name: 'Advanced',
-    price: 'Rp. 500.000',
+    price: 'Rp. 200.000/mo',
+    originalPrice: 'Rp. 320.000/mo',
+    discountPercent: 38,
     features: [
-      'Everything in Intermediate',
+      'All Intermediate features',
       'High priority support',
-      'Deep Research',
-      '500k context window',
-      'Smartest AI Model',
-      'Video Call mode',
+      'In-depth research',
+      '200K token memory',
+      'Smartest AI model',
+      'Video call mode',
       'Agent',
     ],
   },
@@ -60,15 +68,33 @@ interface PricingPanelProps {
 
 const PricingPanel: React.FC<PricingPanelProps> = ({ isOpen, onClose, isSmallScreen }) => {
   const [currentPage, setCurrentPage] = useState(0);
+  // Billing period state: 'monthly' or 'six-month' (6-month plan gives 1 month free)
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'six-month'>('monthly');
+
+  // Helper to format numbers into Indonesian Rupiah string, e.g., 50000 -> "Rp. 50.000"
+  const formatRupiah = (value: number) => `Rp. ${value.toLocaleString('id-ID')}`;
+
+  // Extract pure number from the tier price string (assumes format like "Rp. 50.000/mo")
+  const getMonthlyNumeric = (priceStr: string) => {
+    const onlyDigits = priceStr.replace(/[^0-9]/g, '');
+    return parseInt(onlyDigits, 10) || 0;
+  };
 
   useEffect(() => {
+    // Preserve original overflow style to restore later
+    const previousOverflow = document.body.style.overflow;
+
     if (isOpen) {
+      // Prevent background scrolling while the pricing panel is open
       document.body.style.overflow = 'hidden';
     } else {
-      document.body.style.overflow = 'auto';
+      // Restore whatever the page previously had (default is hidden from globals.css)
+      document.body.style.overflow = previousOverflow || 'hidden';
     }
+
+    // Clean-up when component unmounts or isOpen changes
     return () => {
-      document.body.style.overflow = 'auto';
+      document.body.style.overflow = previousOverflow || 'hidden';
     };
   }, [isOpen]);
 
@@ -147,8 +173,8 @@ const PricingPanel: React.FC<PricingPanelProps> = ({ isOpen, onClose, isSmallScr
             : {
                 width: 'auto',
                 height: 'auto',
-                maxWidth: '1000px', 
-                maxHeight: '800px', 
+                maxWidth: '1200px',
+                maxHeight: '800px',
                 borderRadius: '16px',
               }
           )
@@ -186,6 +212,46 @@ const PricingPanel: React.FC<PricingPanelProps> = ({ isOpen, onClose, isSmallScr
           </button>
         </div>
 
+        {/* Billing period selector */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '12px',
+          padding: '18px',
+          borderBottom: '1px solid var(--border)'
+        }}>
+          <button
+            onClick={() => setBillingPeriod('monthly')}
+            style={{
+              background: billingPeriod === 'monthly' ? 'var(--primary)' : 'var(--secondary)',
+              color: 'var(--foreground)',
+              border: '1px solid var(--border)',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              minWidth: '110px'
+            }}
+          >
+            Monthly
+          </button>
+          <button
+            onClick={() => setBillingPeriod('six-month')}
+            style={{
+              background: billingPeriod === 'six-month' ? 'var(--primary)' : 'var(--secondary)',
+              color: 'var(--foreground)',
+              border: '1px solid var(--border)',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              minWidth: '110px'
+            }}
+          >
+            6&nbsp;Months
+          </button>
+        </div>
+
         <div style={{ 
           flexGrow: 1, 
           padding: isSmallScreen ? '20px 15px' :'20px 30px', // Adjusted mobile padding slightly
@@ -197,53 +263,135 @@ const PricingPanel: React.FC<PricingPanelProps> = ({ isOpen, onClose, isSmallScr
           alignItems: isSmallScreen ? 'center' : 'stretch', // Stretch for desktop to make cards same height if desired, or 'flex-start'
         }}>
           {getDisplayedTiers().map((tier, index) => (
-            <div
+            <motion.div
               key={tier.name}
               style={{
-                background: tier.highlight ? 'var(--secondary)' : 'var(--card-background)',
+                background: tier.highlight ? '#000' : 'var(--card-background)',
                 padding: '25px',
                 borderRadius: '12px',
-                border: tier.highlight ? '2px solid var(--primary)' : '1px solid var(--border)',
-                width: isSmallScreen ? '100%' : '300px',
-                maxWidth: isSmallScreen ? '400px' : '320px', // Max width for single card on mobile
+                border: tier.highlight ? '2px solid #ff3b3b' : '1px solid var(--border)',
+                width: isSmallScreen ? '100%' : '340px',
+                maxWidth: isSmallScreen ? '400px' : '360px',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
-                boxShadow: tier.highlight ? '0 0 15px var(--primary-soft)' : 'var(--shadow-md)',
+                boxShadow: tier.highlight ? '0 0 15px rgba(255,0,0,0.4)' : 'var(--shadow-md)',
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                 minHeight: isSmallScreen? 0 : '450px', // Ensure cards on desktop have a minimum height for alignment
               }}
+              animate={tier.highlight ? { boxShadow: ['0 0 15px rgba(255,0,0,0.4)', '0 0 35px #ff3b3b', '0 0 15px rgba(255,0,0,0.4)'] } : undefined}
+              transition={tier.highlight ? { duration: 2, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' } : undefined}
               onMouseEnter={(e) => {
                 if (!isSmallScreen) {
                   e.currentTarget.style.transform = 'translateY(-5px)';
-                  e.currentTarget.style.boxShadow = tier.highlight ? '0 0 20px var(--primary-soft-strong)' : 'var(--shadow-lg)';
+                  if (!tier.highlight) {
+                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                  }
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isSmallScreen) {
                   e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = tier.highlight ? '0 0 15px var(--primary-soft)' : 'var(--shadow-md)';
+                  if (!tier.highlight) {
+                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                  }
                 }
               }}
             >
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: isSmallScreen ? '10px': '0px' }}>
                 <h3 style={{ 
                     fontSize: '22px', 
-                    color: tier.highlight ? 'var(--primary-foreground)' : 'var(--foreground)', 
+                    color: 'var(--foreground)', 
                     marginBottom: '10px',
                     textAlign: 'center'
                 }}>{tier.name}</h3>
-                <p style={{ 
-                    fontSize: '28px', 
-                    fontWeight: 'bold', 
-                    color: tier.highlight ? 'var(--primary-foreground)' : 'var(--primary)', 
-                    marginBottom: '20px',
-                    textAlign: 'center'
-                }}>{tier.price}</p>
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0, marginBottom: '25px', color: tier.highlight ? 'var(--primary-foreground-secondary)' : 'var(--foreground-secondary)' }}>
+                {billingPeriod === 'monthly' ? (
+                  tier.originalPrice ? (
+                    <div style={{
+                        marginBottom: '20px',
+                        textAlign: 'center',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '6px'
+                    }}>
+                      <span style={{
+                          fontSize: '18px',
+                          color: 'var(--foreground-secondary)',
+                          textDecoration: 'line-through'
+                      }}>{tier.originalPrice}</span>
+                      <span style={{
+                          fontSize: '28px',
+                          fontWeight: 'bold',
+                          color: 'var(--foreground)',
+                          whiteSpace: 'nowrap'
+                      }}>{tier.price}</span>
+                      {tier.discountPercent !== undefined && (
+                        <span style={{
+                            fontSize: '14px',
+                            background: tier.highlight ? '#ff3b3b' : 'var(--primary)',
+                            color: '#fff',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontWeight: 600
+                        }}>
+                          {tier.discountPercent}% OFF
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <p style={{
+                        fontSize: '28px',
+                        fontWeight: 'bold',
+                        color: 'var(--foreground)',
+                        marginBottom: '20px',
+                        textAlign: 'center',
+                        whiteSpace: 'nowrap'
+                    }}>{tier.price}</p>
+                  )
+                ) : (
+                  (() => {
+                    const monthlyValue = getMonthlyNumeric(tier.price);
+                    const originalTotal = monthlyValue * 6; // Pay for 6 months
+                    const discountedTotal = monthlyValue * 5; // 1 month free
+                    return (
+                      <div style={{
+                        marginBottom: '20px',
+                        textAlign: 'center',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}>
+                        <span style={{
+                          fontSize: '18px',
+                          color: 'var(--foreground-secondary)',
+                          textDecoration: 'line-through'
+                        }}>{formatRupiah(originalTotal)}</span>
+                        <span style={{
+                          fontSize: '28px',
+                          fontWeight: 'bold',
+                          color: 'var(--foreground)',
+                          whiteSpace: 'nowrap'
+                        }}>{formatRupiah(discountedTotal)} / 6 mo</span>
+                        <span style={{
+                          fontSize: '14px',
+                          background: 'var(--primary)',
+                          color: 'var(--primary-foreground, #fff)',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          fontWeight: 600
+                        }}>
+                          1 Month FREE
+                        </span>
+                      </div>
+                    );
+                  })()
+                )}
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, marginBottom: '25px', color: 'var(--foreground)' }}>
                   {tier.features.map((feature, i) => (
                     <li key={i} style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', fontSize: '15px' }}>
-                      <span style={{ color: 'var(--accent)', marginRight: '10px', fontSize: '18px' }}>✓</span>
+                      <span style={{ color: 'var(--foreground)', marginRight: '10px', fontSize: '18px' }}>✓</span>
                       {feature}
                     </li>
                   ))}
@@ -267,7 +415,7 @@ const PricingPanel: React.FC<PricingPanelProps> = ({ isOpen, onClose, isSmallScr
               >
                 Coming Soon
               </button>
-            </div>
+            </motion.div>
           ))}
         </div>
         
