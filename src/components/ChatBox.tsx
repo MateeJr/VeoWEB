@@ -68,7 +68,7 @@ const AnimatedButtonText: React.FC<{ text: string; isActive: boolean }> = ({ tex
   }, [isActive, characters.length]);
 
   return (
-    <span className="relative inline-block ml-2 text-sm hidden sm:inline" style={{ color: 'var(--foreground)' }}>
+    <span className="relative ml-2 text-sm hidden sm:inline-block" style={{ color: 'var(--foreground)' }}>
       {/* Invisible placeholder keeps width constant */}
       <span className="opacity-0 select-none pointer-events-none">{text}</span>
 
