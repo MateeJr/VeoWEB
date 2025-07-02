@@ -108,6 +108,11 @@ body {
 html, body {
   height: 100%;
   width: 100%;
+  /* Removed global overflow: hidden to allow modals/animations to work properly */
+}
+
+/* Use this class on <body> when a modal is open to prevent background scroll */
+body.modal-open {
   overflow: hidden;
 }
 
@@ -119,7 +124,8 @@ html, body {
 *,
 ::before,
 ::after {
-  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform, filter;
+  /* Only transition color, background-color, and border-color to avoid animation conflicts */
+  transition-property: background-color, border-color, color;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }

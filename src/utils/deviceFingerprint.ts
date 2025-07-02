@@ -7,15 +7,13 @@ export const generateDeviceFingerprint = (): string => {
   const platform = navigator.platform;
   const language = navigator.language;
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const vendor = navigator.vendor;
   
   // Combine the data into a single string
   const rawFingerprint = [
     userAgent,
     platform,
     language,
-    timezone,
-    vendor
+    timezone
   ].join('|');
   
   // Create a hash of the fingerprint for storage

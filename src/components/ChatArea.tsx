@@ -4,8 +4,9 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { Copy, Edit, RefreshCw, Check, WrapText, ArrowLeftRight, Save, Trash, ChevronDown, ChevronRight } from 'lucide-react';
 import Marked from 'marked-react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneLight, oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import SyntaxHighlighter from 'react-syntax-highlighter/dist/cjs/prism';
+const SyntaxHighlighterAny = SyntaxHighlighter as any; // Workaround for JSX/TS error
+import { oneLight, oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import 'katex/dist/katex.min.css'; // Import KaTeX CSS
 import Latex from 'react-latex-next'; // Import LaTeX component
 import { 
@@ -364,7 +365,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                 </button>
               </div>
             </div>
-            <SyntaxHighlighter
+            <SyntaxHighlighterAny
               language={language || 'text'}
               style={theme === 'dark' ? oneDark : oneLight}
               customStyle={{
@@ -373,7 +374,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                 backgroundColor: theme === 'dark' ? '#171717' : 'transparent',
                 borderRadius: 0,
                 borderBottomLeftRadius: '0.375rem',
-                borderBottomRightRadius: '0.375rem',
+                borderBottomRightRadius: '0.375rem'
               }}
               showLineNumbers={true}
               lineNumberStyle={{
@@ -400,7 +401,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
               }}
             >
               {children}
-            </SyntaxHighlighter>
+            </SyntaxHighlighterAny>
           </div>
         </div>
       );

@@ -26,7 +26,9 @@ const setCookie = (name: string, value: string, days: number = 7) => {
     date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
     expires = "; expires=" + date.toUTCString();
   }
-  document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+  // Always set SameSite and Secure for Safari compatibility
+  const isSecure = window.location.protocol === 'https:';
+  document.cookie = name + "=" + (value || "") + expires + "; path=/" + "; SameSite=Lax" + (isSecure ? "; Secure" : "");
 };
 
 const getCookie = (name: string): string | null => {

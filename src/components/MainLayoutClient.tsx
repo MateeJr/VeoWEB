@@ -37,7 +37,7 @@ const MainLayoutClient: React.FC<MainLayoutClientProps> = ({ children }) => {
   return (
     <ThemeProvider>
       <IncognitoProvider>
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', overflow: 'hidden' }}>
           <Header />
           <main style={{ flexGrow: 1, paddingTop: '72px' }}>
             {children}

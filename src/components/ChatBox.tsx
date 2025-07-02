@@ -1197,15 +1197,16 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
                     borderWidth: 1,
                     borderStyle: 'solid',
                     borderColor: searchDisabled ? 'var(--border)' : (isSearchToggled ? highlightColor : 'var(--border)'),
-                    color: searchDisabled ? 'var(--foreground-secondary)' : (isSearchToggled ? highlightColor : 'var(--foreground-secondary)')
+                    color: searchDisabled ? 'var(--foreground-secondary)' : (isSearchToggled ? highlightColor : 'var(--foreground-secondary)'),
+                    boxShadow: isSearchToggled && !searchDisabled ? undefined : 'none'
                   }}
                   onMouseEnter={(e) => !searchDisabled && (e.currentTarget.style.backgroundColor = 'var(--secondary)')}
                   onMouseLeave={(e) => !searchDisabled && (e.currentTarget.style.backgroundColor = 'var(--background-secondary)')}
                   onTouchStart={!searchDisabled && isMobile ? (e) => handleMobileItemTouchStart(e, 'search-button') : undefined}
                   onTouchEnd={!searchDisabled && isMobile ? () => handleMobileItemTouchEnd('search-button') : undefined}
                   onTouchMove={!searchDisabled && isMobile ? handleMobileItemTouchMove : undefined}
-                  animate={isSearchToggled && !searchDisabled ? { boxShadow: ['0 0 0px rgba(179,0,0,0.4)', '0 0 12px rgba(179,0,0,0.9)', '0 0 0px rgba(179,0,0,0.4)'] } : undefined}
-                  transition={isSearchToggled && !searchDisabled ? { duration: 2, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' } : undefined}
+                  animate={isSearchToggled && !searchDisabled ? { boxShadow: ['0 0 0px rgba(179,0,0,0.4)', '0 0 12px rgba(179,0,0,0.9)', '0 0 0px rgba(179,0,0,0.4)'] } : { boxShadow: 'none' }}
+                  transition={isSearchToggled && !searchDisabled ? { duration: 2, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' } : { duration: 0 }}
                 >
                   <LuGlobe style={{...inputIconStyle, color: searchDisabled ? 'var(--foreground-secondary)' : (isSearchToggled ? highlightColor : 'var(--foreground-secondary)')}} />
                   <AnimatedButtonText text="Search" isActive={isSearchToggled && !searchDisabled} />
@@ -1225,15 +1226,16 @@ const ChatBox: React.FC<ChatBoxProps> = ({ initialConversation }) => {
                     borderWidth: 1,
                     borderStyle: 'solid',
                     borderColor: reasonDisabled ? 'var(--border)' : (isReasonToggled ? highlightColor : 'var(--border)'),
-                    color: reasonDisabled ? 'var(--foreground-secondary)' : (isReasonToggled ? highlightColor : 'var(--foreground-secondary)')
+                    color: reasonDisabled ? 'var(--foreground-secondary)' : (isReasonToggled ? highlightColor : 'var(--foreground-secondary)'),
+                    boxShadow: isReasonToggled && !reasonDisabled ? undefined : 'none'
                   }}
                   onMouseEnter={(e) => !reasonDisabled && (e.currentTarget.style.backgroundColor = 'var(--secondary)')}
                   onMouseLeave={(e) => !reasonDisabled && (e.currentTarget.style.backgroundColor = 'var(--background-secondary)')}
                   onTouchStart={!reasonDisabled && isMobile ? (e) => handleMobileItemTouchStart(e, 'reason-button') : undefined}
                   onTouchEnd={!reasonDisabled && isMobile ? () => handleMobileItemTouchEnd('reason-button') : undefined}
                   onTouchMove={!reasonDisabled && isMobile ? handleMobileItemTouchMove : undefined}
-                  animate={isReasonToggled && !reasonDisabled ? { boxShadow: ['0 0 0px rgba(179,0,0,0.4)', '0 0 12px rgba(179,0,0,0.9)', '0 0 0px rgba(179,0,0,0.4)'] } : undefined}
-                  transition={isReasonToggled && !reasonDisabled ? { duration: 2, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' } : undefined}
+                  animate={isReasonToggled && !reasonDisabled ? { boxShadow: ['0 0 0px rgba(179,0,0,0.4)', '0 0 12px rgba(179,0,0,0.9)', '0 0 0px rgba(179,0,0,0.4)'] } : { boxShadow: 'none' }}
+                  transition={isReasonToggled && !reasonDisabled ? { duration: 2, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' } : { duration: 0 }}
                 >
                   <LuZap style={{...inputIconStyle, color: reasonDisabled ? 'var(--foreground-secondary)' : (isReasonToggled ? highlightColor : 'var(--foreground-secondary)')}} />
                   <AnimatedButtonText text="Instant" isActive={isReasonToggled && !reasonDisabled} />

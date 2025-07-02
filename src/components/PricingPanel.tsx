@@ -266,7 +266,7 @@ const PricingPanel: React.FC<PricingPanelProps> = ({ isOpen, onClose, isSmallScr
             <motion.div
               key={tier.name}
               style={{
-                background: tier.highlight ? '#000' : 'var(--card-background)',
+                background: 'var(--card-background)',
                 padding: '25px',
                 borderRadius: '12px',
                 border: tier.highlight ? '2px solid #ff3b3b' : '1px solid var(--border)',
@@ -278,6 +278,7 @@ const PricingPanel: React.FC<PricingPanelProps> = ({ isOpen, onClose, isSmallScr
                 boxShadow: tier.highlight ? '0 0 15px rgba(255,0,0,0.4)' : 'var(--shadow-md)',
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                 minHeight: isSmallScreen? 0 : '450px', // Ensure cards on desktop have a minimum height for alignment
+                color: 'var(--foreground)'
               }}
               animate={tier.highlight ? { boxShadow: ['0 0 15px rgba(255,0,0,0.4)', '0 0 35px #ff3b3b', '0 0 15px rgba(255,0,0,0.4)'] } : undefined}
               transition={tier.highlight ? { duration: 2, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' } : undefined}
